@@ -72,13 +72,24 @@
       .grid { display: grid; gap: 12px; }
       .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      input, select, button {
+      input[type="date"],
+      input[type="text"],
+      input[type="password"],
+      select,
+      button {
         width: 100%;
         padding: 10px 12px;
         border-radius: 10px;
         border: 1px solid var(--line);
         background: rgba(255, 255, 255, 0.7);
         color: var(--text);
+      }
+      input[type="range"] {
+        width: 100%;
+      }
+      input[type="checkbox"] {
+        width: auto;
+        margin: 0;
       }
       [data-theme="dark"] input,
       [data-theme="dark"] select,
@@ -97,6 +108,7 @@
       table { width: 100%; border-collapse: collapse; }
       th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; }
       .row { display: flex; gap: 10px; align-items: center; }
+      .row.wrap { flex-wrap: wrap; }
       .hidden { display: none !important; }
       .manager-block summary { cursor: pointer; font-weight: 700; margin-bottom: 8px; }
       .stages-grid {
@@ -123,6 +135,7 @@
       @media (max-width: 900px) {
         .g2, .g4 { grid-template-columns: 1fr; }
         .stages-grid { grid-template-columns: 1fr; }
+        .row { flex-wrap: wrap; }
       }
     </style>
   </head>

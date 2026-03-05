@@ -428,9 +428,9 @@ function applyOpacity() {
   const percent = Number(els.opacity.value);
   const opacity = Math.max(0.15, Math.min(1, percent / 100));
   if (isDarkThemeActive()) {
-    document.documentElement.style.setProperty("--card", `rgba(15,20,27,${opacity.toFixed(2)})`);
+    document.body.style.setProperty("--card", `rgba(15,20,27,${opacity.toFixed(2)})`);
   } else {
-    document.documentElement.style.setProperty("--card", `rgba(255,255,255,${opacity.toFixed(2)})`);
+    document.body.style.setProperty("--card", `rgba(255,255,255,${opacity.toFixed(2)})`);
   }
   els.opacityValue.textContent = `${percent}%`;
 }
