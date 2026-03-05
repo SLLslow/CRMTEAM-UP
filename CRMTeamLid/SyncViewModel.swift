@@ -187,7 +187,12 @@ final class SyncViewModel: ObservableObject {
             self.summary = AnalyticsBuilder.build(agreements: agreements, clients: clients)
             normalizeSelectedStages()
             let sourceLoaded = response.meta?.sourceLoaded ?? agreements.count
-            statusMessage = "Аналітика оновлена: \(agreements.count) угод (CRM джерело: \(sourceLoaded))"
+            if let log = try? await keepin.fetchLatestSyncLog() {
+                let durationText = formatDuration(log.durationSec, log.durationMs)
+                statusMessage = "Оновлено через CRM+backend: \(agreements.count) угод (CRM джерело: \(sourceLoaded), час: \(durationText))"
+            } else {
+                statusMessage = "Оновлено через CRM+backend: \(agreements.count) угод (CRM джерело: \(sourceLoaded))"
+            }
             notifyExchangeFinished(success: true)
         } catch {
             lastError = error.localizedDescription
@@ -222,6 +227,16 @@ final class SyncViewModel: ObservableObject {
         } catch {
             // Silent fallback to current in-memory state.
         }
+    }
+
+    private func formatDuration(_ durationSec: Double?, _ durationMs: Int?) -> String {
+        if let durationSec {
+            return String(format: "%.2f с", durationSec)
+        }
+        if let durationMs {
+            return String(format: "%.2f с", Double(durationMs) / 1000.0)
+        }
+        return "н/д"
     }
 
     func checkForAppUpdates() async {

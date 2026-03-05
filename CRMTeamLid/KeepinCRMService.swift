@@ -70,6 +70,35 @@ struct KeepinCRMService {
         )
     }
 
+    func fetchLatestSyncLog() async throws -> BackendSyncLogItem? {
+        guard let url = URL(string: backendBaseURL + "/api/sync/logs?limit=1") else {
+            throw KeepinCRMError.badURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            throw KeepinCRMError.network(message: urlError.localizedDescription)
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw KeepinCRMError.badResponse
+        }
+        guard httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 else {
+            throw KeepinCRMError.serverError(code: httpResponse.statusCode)
+        }
+
+        let payload = try JSONDecoder().decode(BackendSyncLogsResponse.self, from: data)
+        return payload.items.first
+    }
+
     func fetchAllAgreements(from: String, to: String, progress: @escaping (String) -> Void) async throws -> [CRMAgreement] {
         var currentPage = 1
         var hasNextPage = true
@@ -237,6 +266,22 @@ struct BackendSummary: Decodable {
     let agreementsCount: Int?
     let wonCount: Int?
     let failedCount: Int?
+}
+
+struct BackendSyncLogsResponse: Decodable {
+    let items: [BackendSyncLogItem]
+}
+
+struct BackendSyncLogItem: Decodable {
+    let id: Int
+    let startedAt: String?
+    let finishedAt: String?
+    let durationMs: Int?
+    let durationSec: Double?
+    let status: String?
+    let loadedCount: Int?
+    let sourceLoadedCount: Int?
+    let errorMessage: String?
 }
 
 struct BackendAgreement: Decodable {
