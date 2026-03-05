@@ -360,7 +360,7 @@ function renderData() {
           (a) => `<tr><td>${escapeHtml(a.title)}</td><td>${escapeHtml(a.stageName)}</td><td>${a.total.toFixed(2)} грн</td><td>${escapeHtml(a.clientName)}</td></tr>`
         )
         .join("");
-      return `<details class="manager-block"><summary>${escapeHtml(manager)} (${items.length})</summary><table><thead><tr><th>Угода</th><th>Етап</th><th>Сума</th><th>Клієнт</th></tr></thead><tbody>${deals}</tbody></table></details>`;
+      return `<details class="manager-block"><summary>${escapeHtml(manager)} (${items.length})</summary><div class="table-wrap"><table><thead><tr><th>Угода</th><th>Етап</th><th>Сума</th><th>Клієнт</th></tr></thead><tbody>${deals}</tbody></table></div></details>`;
     })
     .join("");
 }
