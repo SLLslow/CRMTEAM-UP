@@ -16,6 +16,7 @@ Browser talks to your backend, backend talks to KeepinCRM.
 5. Add env vars:
    - `KEEPINCRM_BASE_URL=https://api.keepincrm.com/v1`
    - `KEEPINCRM_TOKEN=<your KeepinCRM X-Auth-Token>`
+   - `DATABASE_URL=<postgres connection string>`
    - `CORS_ORIGIN=https://YOUR-VERCEL-DOMAIN.vercel.app`
 
 After deploy you get backend URL, example:
@@ -48,9 +49,17 @@ Frontend:
 Body:
 ```json
 {
-  "token": "X-Auth-Token",
   "dateFrom": "2026-03-01",
   "dateTo": "2026-03-03",
   "managerIds": [13, 9, 37, 12]
 }
 ```
+
+`token` can be omitted when `KEEPINCRM_TOKEN` is configured on backend.
+
+`GET /api/sync/logs?limit=5` returns last sync runs with duration (`durationMs`, `durationSec`).
+
+## DB behavior
+- First sync loads agreements from KeepinCRM and writes to Postgres.
+- Next syncs are incremental by `updated_at` (faster).
+- UI can load existing period from DB immediately via `/api/data` without full CRM reload.

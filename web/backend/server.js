@@ -1,10 +1,24 @@
 import express from "express";
 import cors from "cors";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import pg from "pg";
+
+const { Pool } = pg;
 
 const app = express();
 const port = process.env.PORT || 8080;
 const keepinBase = process.env.KEEPINCRM_BASE_URL || "https://api.keepincrm.com/v1";
 const allowedOrigin = process.env.CORS_ORIGIN || "*";
+const dbUrl = process.env.DATABASE_URL || "";
+
+const pool = dbUrl
+  ? new Pool({
+      connectionString: dbUrl,
+      ssl: { rejectUnauthorized: false }
+    })
+  : null;
 
 app.use(cors({
   origin(origin, callback) {
@@ -17,55 +31,165 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "crmteamlid-backend" });
+app.get("/health", async (_req, res) => {
+  const db = await isDbReady();
+  res.json({ ok: true, service: "crmteamlid-backend", db });
+});
+
+app.post("/api/data", async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(400).json({ error: "DATABASE_URL is not configured." });
+    }
+
+    const { dateFrom, dateTo, managerIds } = req.body ?? {};
+    if (!dateFrom || !dateTo) {
+      return res.status(400).json({ error: "dateFrom and dateTo are required" });
+    }
+
+    const normalizedManagerIds = normalizeManagerIds(managerIds);
+    const agreements = await queryAgreements({ dateFrom, dateTo, managerIds: normalizedManagerIds });
+    const summary = buildSummary(agreements);
+    const stages = [...new Set(agreements.map((a) => a.stageName || "-"))].sort();
+
+    return res.json({
+      summary,
+      stages,
+      agreements,
+      meta: {
+        loaded: agreements.length,
+        sourceLoaded: agreements.length,
+        range: { from: dateFrom, to: dateTo },
+        fromDb: true
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
+});
+
+app.get("/api/sync/logs", async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(400).json({ error: "DATABASE_URL is not configured." });
+    }
+
+    const limitRaw = Number(req.query.limit ?? 5);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(50, limitRaw)) : 5;
+    const logs = await getSyncLogs(limit);
+    return res.json({ items: logs });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
 });
 
 app.post("/api/sync", async (req, res) => {
+  const startedAt = new Date();
+  let loadedCount = 0;
+  let sourceLoadedCount = 0;
+
   try {
     const { token: incomingToken, dateFrom, dateTo, managerIds } = req.body ?? {};
     const token = incomingToken || process.env.KEEPINCRM_TOKEN || "";
 
     if (!token || typeof token !== "string") {
+      await insertSyncLog({
+        startedAt,
+        finishedAt: new Date(),
+        status: "error",
+        dateFrom,
+        dateTo,
+        managerIds,
+        loadedCount: 0,
+        sourceLoadedCount: 0,
+        errorMessage: "Token is required"
+      });
       return res.status(400).json({ error: "Token is required (set KEEPINCRM_TOKEN on backend)." });
     }
     if (!dateFrom || !dateTo) {
+      await insertSyncLog({
+        startedAt,
+        finishedAt: new Date(),
+        status: "error",
+        dateFrom,
+        dateTo,
+        managerIds,
+        loadedCount: 0,
+        sourceLoadedCount: 0,
+        errorMessage: "dateFrom and dateTo are required"
+      });
       return res.status(400).json({ error: "dateFrom and dateTo are required" });
     }
 
-    const normalizedManagerIds = Array.isArray(managerIds)
-      ? new Set(managerIds.map((v) => Number(v)).filter((v) => Number.isFinite(v)))
-      : null;
+    const normalizedManagerIds = normalizeManagerIds(managerIds);
 
-    const agreements = await fetchAllAgreements({ token, dateFrom, dateTo });
-
-    const filtered = agreements.filter((a) => {
-      if (!normalizedManagerIds || normalizedManagerIds.size === 0) return true;
-      return normalizedManagerIds.has(a.managerId);
+    const lastSyncAt = await getLastSyncAt();
+    const fetched = await fetchAllAgreements({
+      token,
+      dateFrom,
+      dateTo,
+      updatedFrom: lastSyncAt
     });
 
-    const summary = buildSummary(filtered);
-    const stages = [...new Set(filtered.map((a) => a.stageName || "-"))].sort();
+    if (pool && fetched.length > 0) {
+      await upsertAgreements(fetched);
+    }
+    await setLastSyncAt(new Date().toISOString());
+
+    const agreements = pool
+      ? await queryAgreements({ dateFrom, dateTo, managerIds: normalizedManagerIds })
+      : fetched.filter((a) => normalizedManagerIds.size === 0 || normalizedManagerIds.has(a.managerId));
+    loadedCount = agreements.length;
+    sourceLoadedCount = fetched.length;
+
+    await insertSyncLog({
+      startedAt,
+      finishedAt: new Date(),
+      status: "ok",
+      dateFrom,
+      dateTo,
+      managerIds: [...normalizedManagerIds],
+      loadedCount,
+      sourceLoadedCount,
+      errorMessage: null
+    });
+
+    const summary = buildSummary(agreements);
+    const stages = [...new Set(agreements.map((a) => a.stageName || "-"))].sort();
 
     return res.json({
       summary,
       stages,
-      agreements: filtered,
+      agreements,
       meta: {
-        loaded: filtered.length,
-        sourceLoaded: agreements.length,
-        range: { from: dateFrom, to: dateTo }
+        loaded: agreements.length,
+        sourceLoaded: fetched.length,
+        range: { from: dateFrom, to: dateTo },
+        incrementalFrom: lastSyncAt || null,
+        fromDb: !!pool
       }
     });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      error: error?.message || "Internal server error"
+    const { dateFrom, dateTo, managerIds } = req.body ?? {};
+    await insertSyncLog({
+      startedAt,
+      finishedAt: new Date(),
+      status: "error",
+      dateFrom,
+      dateTo,
+      managerIds,
+      loadedCount,
+      sourceLoadedCount,
+      errorMessage: error?.message || "Internal server error"
     });
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
   }
 });
 
-async function fetchAllAgreements({ token, dateFrom, dateTo }) {
+async function fetchAllAgreements({ token, dateFrom, dateTo, updatedFrom }) {
   const all = [];
   let page = 1;
   let totalPages = 1;
@@ -74,6 +198,9 @@ async function fetchAllAgreements({ token, dateFrom, dateTo }) {
     const url = new URL(`${keepinBase}/agreements`);
     url.searchParams.set("q[ordered_at_gteq]", dateFrom);
     url.searchParams.set("q[ordered_at_lteq]", dateTo);
+    if (updatedFrom) {
+      url.searchParams.set("q[updated_at_gteq]", updatedFrom);
+    }
     url.searchParams.set("page", String(page));
 
     const response = await fetch(url, {
@@ -125,12 +252,13 @@ function normalizeAgreement(item) {
     stageName: stage?.name || "-",
     sourceName: source?.name || "-",
     clientName,
-    clientId: Number(client?.id ?? 0)
+    clientId: Number(client?.id ?? 0),
+    raw: item
   };
 }
 
 function buildSummary(agreements) {
-  const totalRevenue = agreements.reduce((acc, a) => acc + a.total, 0);
+  const totalRevenue = agreements.reduce((acc, a) => acc + (Number(a.total) || 0), 0);
   const agreementsCount = agreements.length;
   const wonCount = agreements.filter((a) => a.result === "successful").length;
   const failedCount = agreements.filter((a) => a.result === "failed").length;
@@ -150,7 +278,7 @@ function buildSummary(agreements) {
     }
     const m = managerMap.get(key);
     m.dealsCount += 1;
-    m.revenue += a.total;
+    m.revenue += Number(a.total) || 0;
     if (a.result === "successful") m.successfulCount += 1;
     if (a.result === "failed") m.failedCount += 1;
   }
@@ -166,12 +294,256 @@ function buildSummary(agreements) {
   };
 }
 
-app.listen(port, () => {
-  console.log(`CRMTeamLid backend listening on :${port}`);
-});
+function normalizeManagerIds(managerIds) {
+  const values = Array.isArray(managerIds)
+    ? managerIds.map((v) => Number(v)).filter((v) => Number.isFinite(v))
+    : [];
+  return new Set(values);
+}
+
+async function queryAgreements({ dateFrom, dateTo, managerIds }) {
+  if (!pool) return [];
+
+  const managerArray = [...managerIds];
+  const values = [dateFrom, dateTo];
+  let where = `ordered_at::date >= $1::date and ordered_at::date <= $2::date`;
+
+  if (managerArray.length > 0) {
+    values.push(managerArray);
+    where += ` and manager_id = any($3::int[])`;
+  }
+
+  const sql = `
+    select
+      id,
+      title,
+      ordered_at as "orderedAt",
+      created_at as "createdAt",
+      updated_at as "updatedAt",
+      total,
+      result,
+      manager_id as "managerId",
+      manager_name as "managerName",
+      stage_name as "stageName",
+      source_name as "sourceName",
+      client_id as "clientId",
+      client_name as "clientName"
+    from agreements
+    where ${where}
+    order by id desc
+  `;
+
+  const { rows } = await pool.query(sql, values);
+  return rows.map((r) => ({
+    ...r,
+    total: Number(r.total) || 0
+  }));
+}
+
+async function upsertAgreements(agreements) {
+  if (!pool || agreements.length === 0) return;
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+
+    const chunkSize = 250;
+    for (let i = 0; i < agreements.length; i += chunkSize) {
+      const chunk = agreements.slice(i, i + chunkSize);
+      const values = [];
+      const placeholders = chunk.map((a, index) => {
+        const start = index * 14;
+        values.push(
+          a.id,
+          a.title,
+          toPgTimestamp(a.orderedAt),
+          toPgTimestamp(a.createdAt),
+          toPgTimestamp(a.updatedAt),
+          Number(a.total) || 0,
+          a.result,
+          Number(a.managerId) || null,
+          a.managerName,
+          a.stageName,
+          a.sourceName,
+          Number(a.clientId) || null,
+          a.clientName,
+          JSON.stringify(a.raw ?? {})
+        );
+
+        return `($${start + 1},$${start + 2},$${start + 3},$${start + 4},$${start + 5},$${start + 6},$${start + 7},$${start + 8},$${start + 9},$${start + 10},$${start + 11},$${start + 12},$${start + 13},$${start + 14}::jsonb, now())`;
+      });
+
+      const sql = `
+        insert into agreements (
+          id, title, ordered_at, created_at, updated_at, total, result,
+          manager_id, manager_name, stage_name, source_name,
+          client_id, client_name, raw_json, synced_at
+        ) values
+          ${placeholders.join(",")}
+        on conflict (id) do update set
+          title = excluded.title,
+          ordered_at = excluded.ordered_at,
+          created_at = excluded.created_at,
+          updated_at = excluded.updated_at,
+          total = excluded.total,
+          result = excluded.result,
+          manager_id = excluded.manager_id,
+          manager_name = excluded.manager_name,
+          stage_name = excluded.stage_name,
+          source_name = excluded.source_name,
+          client_id = excluded.client_id,
+          client_name = excluded.client_name,
+          raw_json = excluded.raw_json,
+          synced_at = now()
+      `;
+
+      await client.query(sql, values);
+    }
+
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+function toPgTimestamp(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+async function getLastSyncAt() {
+  if (!pool) return null;
+  const { rows } = await pool.query(`select value from sync_state where key = 'agreements_last_sync_at' limit 1`);
+  return rows[0]?.value || null;
+}
+
+async function setLastSyncAt(value) {
+  if (!pool) return;
+  await pool.query(
+    `
+      insert into sync_state (key, value, updated_at)
+      values ('agreements_last_sync_at', $1, now())
+      on conflict (key) do update set
+        value = excluded.value,
+        updated_at = now()
+    `,
+    [value]
+  );
+}
+
+async function ensureDbSchema() {
+  if (!pool) return;
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const sqlPath = path.join(__dirname, "sql", "001_init.sql");
+  const sql = fs.readFileSync(sqlPath, "utf8");
+  await pool.query(sql);
+}
+
+async function insertSyncLog({
+  startedAt,
+  finishedAt,
+  status,
+  dateFrom,
+  dateTo,
+  managerIds,
+  loadedCount,
+  sourceLoadedCount,
+  errorMessage
+}) {
+  if (!pool) return;
+
+  try {
+    const safeStarted = startedAt instanceof Date ? startedAt : new Date();
+    const safeFinished = finishedAt instanceof Date ? finishedAt : new Date();
+    const durationMs = Math.max(0, safeFinished.getTime() - safeStarted.getTime());
+    const managerIdsText = normalizeManagerIdsForLog(managerIds);
+
+    await pool.query(
+      `
+        insert into sync_logs (
+          started_at,
+          finished_at,
+          duration_ms,
+          status,
+          date_from,
+          date_to,
+          manager_ids,
+          loaded_count,
+          source_loaded_count,
+          error_message
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      `,
+      [
+        safeStarted.toISOString(),
+        safeFinished.toISOString(),
+        durationMs,
+        status,
+        dateFrom || null,
+        dateTo || null,
+        managerIdsText,
+        Number(loadedCount) || 0,
+        Number(sourceLoadedCount) || 0,
+        errorMessage || null
+      ]
+    );
+  } catch (error) {
+    console.error("Failed to write sync log", error);
+  }
+}
+
+function normalizeManagerIdsForLog(managerIds) {
+  if (!Array.isArray(managerIds)) return null;
+  const ids = managerIds
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v))
+    .map((v) => String(v));
+  return ids.join(",");
+}
+
+async function getSyncLogs(limit) {
+  if (!pool) return [];
+  const { rows } = await pool.query(
+    `
+      select
+        id,
+        started_at as "startedAt",
+        finished_at as "finishedAt",
+        duration_ms as "durationMs",
+        round(duration_ms / 1000.0, 2) as "durationSec",
+        status,
+        date_from as "dateFrom",
+        date_to as "dateTo",
+        manager_ids as "managerIds",
+        loaded_count as "loadedCount",
+        source_loaded_count as "sourceLoadedCount",
+        error_message as "errorMessage"
+      from sync_logs
+      order by started_at desc
+      limit $1
+    `,
+    [limit]
+  );
+  return rows;
+}
+
+async function isDbReady() {
+  if (!pool) return false;
+  try {
+    await pool.query("select 1");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function isOriginAllowed(origin, configValue) {
-  if (!origin) return true; // non-browser clients (curl/health checks)
+  if (!origin) return true;
   if (!configValue || configValue === "*") return true;
 
   const rules = String(configValue)
@@ -186,7 +558,6 @@ function matchesOriginRule(origin, rule) {
   if (rule === "*") return true;
   if (rule === origin) return true;
 
-  // Allow wildcard subdomain format, e.g. https://*.vercel.app
   if (rule.includes("*")) {
     const escaped = rule
       .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
@@ -197,3 +568,21 @@ function matchesOriginRule(origin, rule) {
 
   return false;
 }
+
+(async () => {
+  try {
+    if (pool) {
+      await ensureDbSchema();
+      console.log("Database schema is ready");
+    } else {
+      console.log("DATABASE_URL is not set. Running without DB cache.");
+    }
+
+    app.listen(port, () => {
+      console.log(`CRMTeamLid backend listening on :${port}`);
+    });
+  } catch (error) {
+    console.error("Failed to start backend", error);
+    process.exit(1);
+  }
+})();

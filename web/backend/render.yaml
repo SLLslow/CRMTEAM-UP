@@ -8,5 +8,9 @@ services:
     envVars:
       - key: KEEPINCRM_BASE_URL
         value: https://api.keepincrm.com/v1
+      - key: KEEPINCRM_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: CORS_ORIGIN
         value: https://crmteamlid.vercel.app
