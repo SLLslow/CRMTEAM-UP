@@ -595,6 +595,8 @@ private extension String {
     }
 }
 
+#if DEBUG
 #Preview {
     ContentView()
 }
+#endif
