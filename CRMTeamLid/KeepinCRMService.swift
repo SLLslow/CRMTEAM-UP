@@ -257,6 +257,17 @@ struct BackendSyncResponse: Decodable {
 struct BackendMeta: Decodable {
     let loaded: Int
     let sourceLoaded: Int
+
+    enum CodingKeys: String, CodingKey {
+        case loaded
+        case sourceLoaded
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        loaded = container.decodeFlexibleInt(forKey: .loaded) ?? 0
+        sourceLoaded = container.decodeFlexibleInt(forKey: .sourceLoaded) ?? 0
+    }
 }
 
 struct BackendSummary: Decodable {
@@ -282,6 +293,23 @@ struct BackendSyncLogItem: Decodable {
     let loadedCount: Int?
     let sourceLoadedCount: Int?
     let errorMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, startedAt, finishedAt, durationMs, durationSec, status, loadedCount, sourceLoadedCount, errorMessage
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = container.decodeFlexibleInt(forKey: .id) ?? 0
+        startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
+        finishedAt = try container.decodeIfPresent(String.self, forKey: .finishedAt)
+        durationMs = container.decodeFlexibleInt(forKey: .durationMs)
+        durationSec = container.decodeFlexibleDouble(forKey: .durationSec)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        loadedCount = container.decodeFlexibleInt(forKey: .loadedCount)
+        sourceLoadedCount = container.decodeFlexibleInt(forKey: .sourceLoadedCount)
+        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+    }
 }
 
 struct BackendAgreement: Decodable {
@@ -298,6 +326,27 @@ struct BackendAgreement: Decodable {
     let sourceName: String?
     let clientId: Int?
     let clientName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, orderedAt, createdAt, updatedAt, total, result, managerId, managerName, stageName, sourceName, clientId, clientName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = container.decodeFlexibleInt(forKey: .id) ?? 0
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        orderedAt = try container.decodeIfPresent(String.self, forKey: .orderedAt)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        total = container.decodeFlexibleDouble(forKey: .total)
+        result = try container.decodeIfPresent(String.self, forKey: .result)
+        managerId = container.decodeFlexibleInt(forKey: .managerId)
+        managerName = try container.decodeIfPresent(String.self, forKey: .managerName)
+        stageName = try container.decodeIfPresent(String.self, forKey: .stageName)
+        sourceName = try container.decodeIfPresent(String.self, forKey: .sourceName)
+        clientId = container.decodeFlexibleInt(forKey: .clientId)
+        clientName = try container.decodeIfPresent(String.self, forKey: .clientName)
+    }
 
     func toCRMAgreement() -> CRMAgreement {
         CRMAgreement(
@@ -324,3 +373,34 @@ struct BackendAgreement: Decodable {
         )
     }
 }
+private extension KeyedDecodingContainer {
+    func decodeFlexibleInt(forKey key: K) -> Int? {
+        if let value = try? decodeIfPresent(Int.self, forKey: key) {
+            return value
+        }
+        if let value = try? decodeIfPresent(Double.self, forKey: key) {
+            return Int(value)
+        }
+        if let value = try? decodeIfPresent(String.self, forKey: key) {
+            return Int(value)
+        }
+        return nil
+    }
+
+    func decodeFlexibleDouble(forKey key: K) -> Double? {
+        if let value = try? decodeIfPresent(Double.self, forKey: key) {
+            return value
+        }
+        if let value = try? decodeIfPresent(Int.self, forKey: key) {
+            return Double(value)
+        }
+        if let stringValue = try? decodeIfPresent(String.self, forKey: key) {
+            let normalized = stringValue
+                .replacingOccurrences(of: " ", with: "")
+                .replacingOccurrences(of: ",", with: ".")
+            return Double(normalized)
+        }
+        return nil
+    }
+}
+
