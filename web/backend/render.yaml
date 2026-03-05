@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: crmteamlid-backend
+    env: node
+    rootDir: web/backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: KEEPINCRM_BASE_URL
+        value: https://api.keepincrm.com/v1
+      - key: CORS_ORIGIN
+        value: https://crmteamlid.vercel.app

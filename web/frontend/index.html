@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CRM Team Lid Web</title>
+    <style>
+      :root {
+        --bg: #f2f5f8;
+        --bg-2: #dfe8ef;
+        --card: rgba(255, 255, 255, 0.9);
+        --text: #1f2a37;
+        --muted: #5a6777;
+        --line: rgba(32, 44, 60, 0.15);
+        --brand: #0f6ebf;
+        --ok: #0b8e5f;
+        --bad: #c93535;
+      }
+      [data-theme="dark"] {
+        --bg: #0f141b;
+        --bg-2: #172331;
+        --card: rgba(15, 20, 27, 0.82);
+        --text: #e6edf5;
+        --muted: #a6b4c4;
+        --line: rgba(226, 235, 247, 0.15);
+        --brand: #3ea2ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+        background: radial-gradient(circle at 15% 10%, var(--bg-2), var(--bg));
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .tabs {
+        display: inline-flex;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .tab {
+        border: 0;
+        padding: 10px 18px;
+        cursor: pointer;
+        background: transparent;
+        color: var(--text);
+        font-weight: 600;
+      }
+      .tab.active { background: var(--brand); color: #fff; }
+      .card {
+        margin-top: 14px;
+        padding: 16px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: var(--card);
+        backdrop-filter: blur(6px);
+      }
+      .grid { display: grid; gap: 12px; }
+      .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      input, select, button {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--text);
+      }
+      [data-theme="dark"] input,
+      [data-theme="dark"] select,
+      [data-theme="dark"] button {
+        background: rgba(22, 29, 39, 0.75);
+      }
+      button.primary {
+        background: var(--brand);
+        color: #fff;
+        border-color: var(--brand);
+        font-weight: 700;
+      }
+      button.secondary { font-weight: 600; }
+      .muted { color: var(--muted); font-size: 13px; }
+      .err { color: var(--bad); font-weight: 600; }
+      .ok { color: var(--ok); font-weight: 600; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; }
+      .row { display: flex; gap: 10px; align-items: center; }
+      .hidden { display: none !important; }
+      .manager-block summary { cursor: pointer; font-weight: 700; margin-bottom: 8px; }
+      @media (max-width: 900px) {
+        .g2, .g4 { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="tabs">
+        <button class="tab active" data-tab="exchange">Обмін</button>
+        <button class="tab" data-tab="data">Дані</button>
+        <button class="tab" data-tab="settings">Налаштування</button>
+      </div>
+
+      <section id="exchange" class="panel">
+        <div class="card grid g2">
+          <label>
+            Токен KeepinCRM
+            <input id="token" type="password" placeholder="X-Auth-Token" />
+          </label>
+          <div></div>
+          <label>Період від <input id="from" type="date" /></label>
+          <label>Період до <input id="to" type="date" /></label>
+          <div>
+            <b>Менеджери</b>
+            <div><label><input type="checkbox" class="mgr" value="13" checked /> Рифяк Сільвія</label></div>
+            <div><label><input type="checkbox" class="mgr" value="9" checked /> Сулима Ліля</label></div>
+            <div><label><input type="checkbox" class="mgr" value="37" checked /> Оксана Ящишин</label></div>
+            <div><label><input type="checkbox" class="mgr" value="12" checked /> Кошик Наталія</label></div>
+          </div>
+          <div class="row" style="align-self:end;">
+            <button id="sync" class="primary">Оновити дані</button>
+          </div>
+        </div>
+        <div class="card">
+          <div><b>Статус:</b> <span id="status">Готово</span></div>
+          <div id="error" class="err"></div>
+        </div>
+      </section>
+
+      <section id="data" class="panel hidden">
+        <div class="card grid g4" id="summary"></div>
+        <div class="card">
+          <h3>Менеджер | К-сть угод | Сума | Успішні | Неуспішні</h3>
+          <table>
+            <thead>
+              <tr><th>Менеджер</th><th>Угод</th><th>Сума</th><th>Успішні</th><th>Неуспішні</th></tr>
+            </thead>
+            <tbody id="managerRows"></tbody>
+          </table>
+        </div>
+        <div class="card" id="managerDeals"></div>
+      </section>
+
+      <section id="settings" class="panel hidden">
+        <div class="card grid g2">
+          <label>
+            Тема
+            <select id="theme">
+              <option value="system">Системна</option>
+              <option value="light">Світла</option>
+              <option value="dark">Темна</option>
+            </select>
+          </label>
+          <label>
+            Прозорість панелей: <span id="opacityValue">90%</span>
+            <input id="opacity" type="range" min="15" max="100" value="90" />
+          </label>
+          <label>
+            Автообмін
+            <select id="autosync">
+              <option value="0">Вимкнено</option>
+              <option value="15">Кожні 15 хв</option>
+              <option value="30">Кожні 30 хв</option>
+              <option value="60">Кожну 1 годину</option>
+            </select>
+          </label>
+          <label>
+            <input id="notify" type="checkbox" /> Сповіщення про завершення обміну
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
