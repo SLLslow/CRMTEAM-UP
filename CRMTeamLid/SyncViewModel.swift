@@ -1,9 +1,48 @@
 import Foundation
 import Combine
+#if os(macOS)
+import AppKit
+import UniformTypeIdentifiers
+import UserNotifications
+#endif
 
 struct ManagerOption: Identifiable, Hashable {
     let id: Int
     let name: String
+}
+
+enum AppTheme: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: return "Системна"
+        case .light: return "Світла"
+        case .dark: return "Темна"
+        }
+    }
+}
+
+enum AutoSyncInterval: Int, CaseIterable, Identifiable {
+    case off = 0
+    case minutes15 = 15
+    case minutes30 = 30
+    case hour1 = 60
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: return "Вимкнено"
+        case .minutes15: return "Кожні 15 хв"
+        case .minutes30: return "Кожні 30 хв"
+        case .hour1: return "Кожну 1 годину"
+        }
+    }
 }
 
 @MainActor
@@ -19,13 +58,25 @@ final class SyncViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var statusMessage = "Готово до завантаження"
     @Published var lastError = ""
+    @Published var updateMessage = "Перевірка оновлень не виконувалась"
+    @Published var availableUpdate: AppUpdateInfo?
+    @Published var isInstallingUpdate = false
+    @Published var backgroundImageURL: URL?
+    @Published var selectedTheme: AppTheme = .system
+    @Published var notificationsEnabled = false
+    @Published var notificationSoundURL: URL?
+    @Published var autoSyncInterval: AutoSyncInterval = .off
+    @Published var refreshOnLaunch = false
     @Published var summary: AnalyticsSummary?
     @Published var agreements: [CRMAgreement] = []
     @Published var clients: [CRMClient] = []
     private var cancellables = Set<AnyCancellable>()
+    private var autoSyncTask: Task<Void, Never>?
 
     init() {
         loadCachedDashboard()
+        loadBackgroundImage()
+        loadSettings()
 
         rememberToken = UserDefaults.standard.bool(forKey: Self.rememberTokenKey)
         if rememberToken {
@@ -53,9 +104,47 @@ final class SyncViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        if rememberToken, !keepinApiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        $selectedTheme
+            .dropFirst()
+            .sink { value in
+                UserDefaults.standard.set(value.rawValue, forKey: Self.themeKey)
+            }
+            .store(in: &cancellables)
+
+        $refreshOnLaunch
+            .dropFirst()
+            .sink { value in
+                UserDefaults.standard.set(value, forKey: Self.refreshOnLaunchKey)
+            }
+            .store(in: &cancellables)
+
+        $notificationsEnabled
+            .dropFirst()
+            .sink { [weak self] enabled in
+                UserDefaults.standard.set(enabled, forKey: Self.notificationsEnabledKey)
+                if enabled {
+                    self?.requestNotificationPermission()
+                }
+            }
+            .store(in: &cancellables)
+
+        $autoSyncInterval
+            .dropFirst()
+            .sink { [weak self] interval in
+                UserDefaults.standard.set(interval.rawValue, forKey: Self.autoSyncIntervalKey)
+                self?.configureAutoSync()
+            }
+            .store(in: &cancellables)
+
+        configureAutoSync()
+
+        if refreshOnLaunch, rememberToken, !keepinApiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Task { await loadDashboard() }
         }
+    }
+
+    deinit {
+        autoSyncTask?.cancel()
     }
 
     func loadDashboard() async {
@@ -98,11 +187,104 @@ final class SyncViewModel: ObservableObject {
             normalizeSelectedStages()
             statusMessage = "Аналітика оновлена: \(agreements.count) угод за період \(agreementsFrom) - \(agreementsTo)"
             saveCachedDashboard()
+            notifyExchangeFinished(success: true)
         } catch {
             lastError = error.localizedDescription
             statusMessage = "Оновлення з помилкою"
+            notifyExchangeFinished(success: false)
         }
     }
+
+    func checkForAppUpdates() async {
+        do {
+            let service = BetaUpdateService()
+            let release = try await service.fetchLatestRelease(preferBeta: true)
+            let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+            if service.isNewer(remoteVersion: release.version, currentVersion: currentVersion) {
+                availableUpdate = release
+                updateMessage = "Доступне оновлення \(release.version) (\(release.isPrerelease ? "beta" : "stable"))"
+            } else {
+                availableUpdate = nil
+                updateMessage = "Оновлень немає. Поточна версія: \(currentVersion)"
+            }
+        } catch {
+            availableUpdate = nil
+            updateMessage = "Не вдалося перевірити оновлення: \(error.localizedDescription)"
+        }
+    }
+
+    func installAvailableUpdate() async {
+        guard let update = availableUpdate else { return }
+        isInstallingUpdate = true
+        defer { isInstallingUpdate = false }
+
+        do {
+            let service = BetaUpdateService()
+            try await service.install(update: update, over: Bundle.main.bundleURL)
+            updateMessage = "Оновлення встановлюється, застосунок перезапуститься..."
+            #if os(macOS)
+            NSApplication.shared.terminate(nil)
+            #endif
+        } catch {
+            updateMessage = "Не вдалося автооновити: \(error.localizedDescription)"
+        }
+    }
+
+    #if os(macOS)
+    func chooseBackgroundImage() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.png, .jpeg, .heic, .heif, .tiff, .gif, .bmp]
+        panel.title = "Оберіть фонове зображення"
+
+        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
+
+        do {
+            let savedURL = try persistBackgroundImage(from: sourceURL)
+            backgroundImageURL = savedURL
+            UserDefaults.standard.set(savedURL.path, forKey: Self.backgroundImagePathKey)
+        } catch {
+            lastError = "Не вдалося зберегти фон: \(error.localizedDescription)"
+        }
+    }
+
+    func chooseNotificationSound() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.mp3, .wav, .aiff, .midi, .mpeg4Audio]
+        panel.title = "Оберіть файл звуку сповіщення"
+
+        guard panel.runModal() == .OK, let sourceURL = panel.url else { return }
+
+        do {
+            let savedURL = try persistNotificationSound(from: sourceURL)
+            notificationSoundURL = savedURL
+            UserDefaults.standard.set(savedURL.path, forKey: Self.notificationSoundPathKey)
+        } catch {
+            lastError = "Не вдалося зберегти звук: \(error.localizedDescription)"
+        }
+    }
+
+    func clearNotificationSound() {
+        if let existingPath = UserDefaults.standard.string(forKey: Self.notificationSoundPathKey) {
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: existingPath))
+        }
+        UserDefaults.standard.removeObject(forKey: Self.notificationSoundPathKey)
+        notificationSoundURL = nil
+    }
+
+    func clearBackgroundImage() {
+        if let existingPath = UserDefaults.standard.string(forKey: Self.backgroundImagePathKey) {
+            try? FileManager.default.removeItem(at: URL(fileURLWithPath: existingPath))
+        }
+        UserDefaults.standard.removeObject(forKey: Self.backgroundImagePathKey)
+        backgroundImageURL = nil
+    }
+    #endif
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -112,6 +294,12 @@ final class SyncViewModel: ObservableObject {
 
     private static let rememberTokenKey = "remember_keepin_token"
     private static let savedTokenKey = "saved_keepin_token"
+    private static let backgroundImagePathKey = "saved_background_image_path"
+    private static let notificationSoundPathKey = "notification_sound_path"
+    private static let themeKey = "app_theme"
+    private static let refreshOnLaunchKey = "refresh_on_launch"
+    private static let notificationsEnabledKey = "notifications_enabled"
+    private static let autoSyncIntervalKey = "auto_sync_interval_minutes"
     static let availableManagers: [ManagerOption] = [
         ManagerOption(id: 13, name: "Рифяк Сільвія"),
         ManagerOption(id: 9, name: "Сулима Ліля"),
@@ -249,6 +437,109 @@ final class SyncViewModel: ObservableObject {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    private func loadBackgroundImage() {
+        guard let path = UserDefaults.standard.string(forKey: Self.backgroundImagePathKey) else { return }
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: url.path) {
+            backgroundImageURL = url
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.backgroundImagePathKey)
+        }
+    }
+
+    private func loadSettings() {
+        if let rawTheme = UserDefaults.standard.string(forKey: Self.themeKey),
+           let theme = AppTheme(rawValue: rawTheme) {
+            selectedTheme = theme
+        } else {
+            selectedTheme = .system
+        }
+
+        refreshOnLaunch = UserDefaults.standard.bool(forKey: Self.refreshOnLaunchKey)
+        notificationsEnabled = UserDefaults.standard.bool(forKey: Self.notificationsEnabledKey)
+
+        let intervalRaw = UserDefaults.standard.integer(forKey: Self.autoSyncIntervalKey)
+        autoSyncInterval = AutoSyncInterval(rawValue: intervalRaw) ?? .off
+
+        guard let soundPath = UserDefaults.standard.string(forKey: Self.notificationSoundPathKey) else { return }
+        let url = URL(fileURLWithPath: soundPath)
+        if FileManager.default.fileExists(atPath: url.path) {
+            notificationSoundURL = url
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.notificationSoundPathKey)
+        }
+    }
+
+    #if os(macOS)
+    private func persistBackgroundImage(from sourceURL: URL) throws -> URL {
+        let destinationFolder = Self.cacheURL.deletingLastPathComponent().appendingPathComponent("Background", isDirectory: true)
+        try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
+
+        let ext = sourceURL.pathExtension.isEmpty ? "png" : sourceURL.pathExtension
+        let destinationURL = destinationFolder.appendingPathComponent("background.\(ext)")
+
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+
+        return destinationURL
+    }
+
+    private func persistNotificationSound(from sourceURL: URL) throws -> URL {
+        let destinationFolder = Self.cacheURL.deletingLastPathComponent().appendingPathComponent("Sounds", isDirectory: true)
+        try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
+
+        let ext = sourceURL.pathExtension.isEmpty ? "mp3" : sourceURL.pathExtension
+        let destinationURL = destinationFolder.appendingPathComponent("notification.\(ext)")
+
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+
+        return destinationURL
+    }
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private func notifyExchangeFinished(success: Bool) {
+        guard notificationsEnabled else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "CRMTeamLid"
+        content.body = success ? "Обмін завершено успішно" : "Обмін завершено з помилкою"
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+
+        if let soundURL = notificationSoundURL {
+            NSSound(contentsOf: soundURL, byReference: true)?.play()
+        }
+    }
+
+    private func configureAutoSync() {
+        autoSyncTask?.cancel()
+        guard autoSyncInterval != .off else { return }
+
+        autoSyncTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                let seconds = UInt64(autoSyncInterval.rawValue * 60) * 1_000_000_000
+                try? await Task.sleep(nanoseconds: seconds)
+                guard !Task.isCancelled else { return }
+                await self.loadDashboard()
+            }
+        }
+    }
+    #endif
 }
 
 private struct CachedDashboard: Codable {
@@ -290,7 +581,11 @@ private struct CachedAgreement: Codable {
         stageName = model.stage?.name
         sourceId = model.source?.id
         sourceName = model.source?.name
-        client = model.client.map(CachedClient.init)
+        if let modelClient = model.client {
+            client = CachedClient(modelClient)
+        } else {
+            client = nil
+        }
     }
 
     func toModel() -> CRMAgreement {

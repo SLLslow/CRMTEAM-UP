@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct ContentView: View {
     @StateObject private var viewModel = SyncViewModel()
@@ -13,17 +16,28 @@ struct ContentView: View {
     @State private var isStagesExpanded = false
 
     var body: some View {
-        TabView {
-            exchangeTab
-                .tabItem {
-                    Label("Обмін", systemImage: "arrow.triangle.2.circlepath")
-                }
+        ZStack {
+            backgroundView
+                .ignoresSafeArea()
 
-            dataTab
-                .tabItem {
-                    Label("Дані", systemImage: "tablecells")
-                }
+            TabView {
+                exchangeTab
+                    .tabItem {
+                        Label("Обмін", systemImage: "arrow.triangle.2.circlepath")
+                    }
+
+                dataTab
+                    .tabItem {
+                        Label("Дані", systemImage: "tablecells")
+                    }
+
+                settingsTab
+                    .tabItem {
+                        Label("Налаштування", systemImage: "gearshape")
+                    }
+            }
         }
+        .preferredColorScheme(preferredColorScheme)
     }
 
     private var exchangeTab: some View {
@@ -101,13 +115,38 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.isLoading)
 
+                Button("Перевірити оновлення додатку") {
+                    Task { await viewModel.checkForAppUpdates() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isInstallingUpdate)
+
+                if viewModel.availableUpdate != nil {
+                    Button(viewModel.isInstallingUpdate ? "Встановлення..." : "Встановити оновлення автоматично") {
+                        Task { await viewModel.installAvailableUpdate() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.isInstallingUpdate)
+                }
+
                 if viewModel.isLoading {
+                    ProgressView()
+                }
+                if viewModel.isInstallingUpdate {
                     ProgressView()
                 }
 
                 Text("Отримуємо тільки з CRM (read-only). Етапи угод також завантажуються.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+
+                Text(viewModel.updateMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if let updateURL = viewModel.availableUpdate?.htmlURL {
+                    Link("Відкрити сторінку оновлення", destination: updateURL)
+                        .font(.footnote)
+                }
             }
         }
     }
@@ -173,6 +212,99 @@ struct ContentView: View {
                     Text(viewModel.lastError)
                         .foregroundStyle(.red)
                 }
+            }
+        }
+    }
+
+    private var settingsTab: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    appearanceSettingsCard
+                    automationSettingsCard
+                    notificationSettingsCard
+                }
+                .frame(maxWidth: 960, alignment: .leading)
+                .padding()
+                .frame(maxWidth: .infinity)
+            }
+            .navigationTitle("Налаштування")
+        }
+    }
+
+    private var appearanceSettingsCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Оформлення")
+                    .font(.headline)
+
+                Picker("Тема", selection: $viewModel.selectedTheme) {
+                    ForEach(AppTheme.allCases) { theme in
+                        Text(theme.title).tag(theme)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                #if os(macOS)
+                HStack(spacing: 8) {
+                    Button("Обрати фон") {
+                        viewModel.chooseBackgroundImage()
+                    }
+                    .buttonStyle(.bordered)
+
+                    if viewModel.backgroundImageURL != nil {
+                        Button("Скинути фон") {
+                            viewModel.clearBackgroundImage()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                #endif
+            }
+        }
+    }
+
+    private var automationSettingsCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Автоматизація")
+                    .font(.headline)
+
+                Toggle("Оновлювати дані при запуску", isOn: $viewModel.refreshOnLaunch)
+
+                Picker("Автообмін", selection: $viewModel.autoSyncInterval) {
+                    ForEach(AutoSyncInterval.allCases) { interval in
+                        Text(interval.title).tag(interval)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        }
+    }
+
+    private var notificationSettingsCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Сповіщення")
+                    .font(.headline)
+
+                Toggle("Сповіщати про завершення обміну", isOn: $viewModel.notificationsEnabled)
+
+                #if os(macOS)
+                HStack(spacing: 8) {
+                    Button("Обрати звук") {
+                        viewModel.chooseNotificationSound()
+                    }
+                    .buttonStyle(.bordered)
+
+                    if viewModel.notificationSoundURL != nil {
+                        Button("Скинути звук") {
+                            viewModel.clearNotificationSound()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+                #endif
             }
         }
     }
@@ -344,7 +476,7 @@ struct ContentView: View {
         content()
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(Color.white.opacity(0.92))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -354,6 +486,44 @@ struct ContentView: View {
 
     private func currency(_ value: Double) -> String {
         String(format: "%.2f грн", value)
+    }
+
+    @ViewBuilder
+    private var backgroundView: some View {
+        #if os(macOS)
+        if let url = viewModel.backgroundImageURL, let image = NSImage(contentsOf: url) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+                .overlay(Color.white.opacity(0.55))
+        } else {
+            defaultBackground
+        }
+        #else
+        defaultBackground
+        #endif
+    }
+
+    private var defaultBackground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.95, green: 0.97, blue: 1.0),
+                Color(red: 0.96, green: 0.99, blue: 0.96)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var preferredColorScheme: ColorScheme? {
+        switch viewModel.selectedTheme {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        }
     }
 }
 
