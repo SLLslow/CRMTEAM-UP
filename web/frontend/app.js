@@ -33,7 +33,6 @@ const els = {
   opacity: document.getElementById("opacity"),
   opacityValue: document.getElementById("opacityValue"),
   autosync: document.getElementById("autosync"),
-  refreshOnLaunch: document.getElementById("refreshOnLaunch"),
   notify: document.getElementById("notify"),
   bgPick: document.getElementById("bgPick"),
   bgClear: document.getElementById("bgClear"),
@@ -64,7 +63,6 @@ function init() {
   els.theme.value = localStorage.getItem("crm_theme") || "system";
   els.opacity.value = localStorage.getItem("crm_panel_opacity") || "90";
   els.autosync.value = localStorage.getItem("crm_autosync") || "0";
-  els.refreshOnLaunch.checked = localStorage.getItem("crm_refresh_on_launch") === "1";
   els.notify.checked = localStorage.getItem("crm_notify") === "1";
 
   state.soundDataUrl = localStorage.getItem("crm_sound_dataurl") || "";
@@ -110,10 +108,6 @@ function init() {
   els.autosync.addEventListener("change", () => {
     localStorage.setItem("crm_autosync", els.autosync.value);
     setupAutosync();
-  });
-
-  els.refreshOnLaunch.addEventListener("change", () => {
-    localStorage.setItem("crm_refresh_on_launch", els.refreshOnLaunch.checked ? "1" : "0");
   });
 
   els.notify.addEventListener("change", async () => {
@@ -174,9 +168,6 @@ function init() {
     renderData();
   });
 
-  if (els.refreshOnLaunch.checked && els.token.value.trim()) {
-    syncNow();
-  }
 }
 
 function switchTab(tab) {
