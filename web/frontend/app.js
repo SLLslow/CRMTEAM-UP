@@ -129,7 +129,16 @@ function init() {
     reader.onload = () => {
       const dataUrl = String(reader.result || "");
       if (dataUrl.startsWith("data:image/")) {
-        localStorage.setItem("crm_bg_dataurl", dataUrl);
+        document.body.style.backgroundImage = `url("${dataUrl}")`;
+        document.body.style.backgroundPosition = "center";
+        document.body.style.backgroundSize = "cover";
+        document.body.style.backgroundRepeat = "no-repeat";
+        document.body.style.backgroundAttachment = "fixed";
+        try {
+          localStorage.setItem("crm_bg_dataurl", dataUrl);
+        } catch (_) {
+          setError("Фото фону завелике для збереження в браузері. Обери менший файл.");
+        }
         applyBackground();
       }
     };
@@ -368,9 +377,14 @@ function applyOpacity() {
 function applyBackground() {
   const bg = localStorage.getItem("crm_bg_dataurl");
   if (bg) {
-    document.body.style.background = `center/cover fixed no-repeat url('${bg}')`;
+    document.body.style.backgroundImage = `url("${bg}")`;
+    document.body.style.backgroundPosition = "center";
+    document.body.style.backgroundSize = "cover";
+    document.body.style.backgroundRepeat = "no-repeat";
+    document.body.style.backgroundAttachment = "fixed";
     return;
   }
+  document.body.style.backgroundImage = "";
   document.body.style.background = "radial-gradient(circle at 15% 10%, var(--bg-2), var(--bg))";
 }
 
