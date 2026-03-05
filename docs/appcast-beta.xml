@@ -5,6 +5,18 @@
     <link>https://github.com/SLLslow/CRMTEAM-UP/releases</link>
     <description>Beta appcast feed</description>
     <item>
+      <title>CRMTeamLid 1.0.1-beta.7</title>
+      <sparkle:version>1.0.1-beta.7</sparkle:version>
+      <pubDate>2026-03-05T20:24:23Z</pubDate>
+      <link>https://github.com/SLLslow/CRMTEAM-UP/releases/tag/v1.0.1-beta.7</link>
+    </item>
+    <item>
+      <title>CRMTeamLid 1.0.1-beta.6</title>
+      <sparkle:version>1.0.1-beta.6</sparkle:version>
+      <pubDate>2026-03-05T12:39:04Z</pubDate>
+      <link>https://github.com/SLLslow/CRMTEAM-UP/releases/tag/v1.0.1-beta.6</link>
+    </item>
+    <item>
       <title>CRMTeamLid 1.0.1-beta.4</title>
       <sparkle:version>1.0.1-beta.4</sparkle:version>
       <pubDate>2026-03-05T12:28:57Z</pubDate>
