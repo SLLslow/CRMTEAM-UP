@@ -67,6 +67,7 @@ final class SyncViewModel: ObservableObject {
     @Published var notificationSoundURL: URL?
     @Published var autoSyncInterval: AutoSyncInterval = .off
     @Published var refreshOnLaunch = false
+    @Published var panelOpacity = 0.92
     @Published var summary: AnalyticsSummary?
     @Published var agreements: [CRMAgreement] = []
     @Published var clients: [CRMClient] = []
@@ -115,6 +116,13 @@ final class SyncViewModel: ObservableObject {
             .dropFirst()
             .sink { value in
                 UserDefaults.standard.set(value, forKey: Self.refreshOnLaunchKey)
+            }
+            .store(in: &cancellables)
+
+        $panelOpacity
+            .dropFirst()
+            .sink { value in
+                UserDefaults.standard.set(value, forKey: Self.panelOpacityKey)
             }
             .store(in: &cancellables)
 
@@ -300,6 +308,7 @@ final class SyncViewModel: ObservableObject {
     private static let refreshOnLaunchKey = "refresh_on_launch"
     private static let notificationsEnabledKey = "notifications_enabled"
     private static let autoSyncIntervalKey = "auto_sync_interval_minutes"
+    private static let panelOpacityKey = "panel_opacity"
     static let availableManagers: [ManagerOption] = [
         ManagerOption(id: 13, name: "Рифяк Сільвія"),
         ManagerOption(id: 9, name: "Сулима Ліля"),
@@ -461,6 +470,8 @@ final class SyncViewModel: ObservableObject {
 
         let intervalRaw = UserDefaults.standard.integer(forKey: Self.autoSyncIntervalKey)
         autoSyncInterval = AutoSyncInterval(rawValue: intervalRaw) ?? .off
+        let savedOpacity = UserDefaults.standard.double(forKey: Self.panelOpacityKey)
+        panelOpacity = savedOpacity == 0 ? 0.92 : min(max(savedOpacity, 0.15), 1.0)
 
         guard let soundPath = UserDefaults.standard.string(forKey: Self.notificationSoundPathKey) else { return }
         let url = URL(fileURLWithPath: soundPath)

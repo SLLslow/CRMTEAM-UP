@@ -246,6 +246,16 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
 
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Прозорість панелей")
+                        Spacer()
+                        Text("\(Int(viewModel.panelOpacity * 100))%")
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $viewModel.panelOpacity, in: 0.15...1.0, step: 0.01)
+                }
+
                 #if os(macOS)
                 HStack(spacing: 8) {
                     Button("Обрати фон") {
@@ -525,7 +535,10 @@ struct ContentView: View {
     }
 
     private var cardBackgroundColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.92)
+        if colorScheme == .dark {
+            return Color.black.opacity(viewModel.panelOpacity)
+        }
+        return Color.white.opacity(viewModel.panelOpacity)
     }
 
     private var cardBorderColor: Color {
