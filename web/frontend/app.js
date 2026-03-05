@@ -74,6 +74,7 @@ async function init() {
   setupAutosync();
 
   bindEvents();
+  updatePresetButtons();
 
   await loadFromDb();
 }
@@ -86,16 +87,16 @@ function bindEvents() {
   els.preset3.addEventListener("click", () => applyPresetDays(3));
   els.preset7.addEventListener("click", () => applyPresetDays(7));
   els.presetCustom.addEventListener("click", () => {
-    localStorage.setItem("crm_last_preset", "custom");
+    setPresetMode("custom");
   });
 
   els.from.addEventListener("change", () => {
     localStorage.setItem("crm_from", els.from.value);
-    localStorage.setItem("crm_last_preset", "custom");
+    setPresetMode("custom");
   });
   els.to.addEventListener("change", () => {
     localStorage.setItem("crm_to", els.to.value);
-    localStorage.setItem("crm_last_preset", "custom");
+    setPresetMode("custom");
   });
 
   els.dataFrom.addEventListener("change", () => {
@@ -196,7 +197,23 @@ function applyPresetDays(days) {
   els.to.value = toDateInput(to);
   localStorage.setItem("crm_from", els.from.value);
   localStorage.setItem("crm_to", els.to.value);
-  localStorage.setItem("crm_last_preset", String(days));
+  setPresetMode(String(days));
+}
+
+function setPresetMode(mode) {
+  localStorage.setItem("crm_last_preset", mode);
+  updatePresetButtons();
+}
+
+function updatePresetButtons() {
+  const mode = localStorage.getItem("crm_last_preset") || "7";
+  if (!localStorage.getItem("crm_last_preset")) {
+    localStorage.setItem("crm_last_preset", mode);
+  }
+  els.preset1.classList.toggle("preset-active", mode === "1");
+  els.preset3.classList.toggle("preset-active", mode === "3");
+  els.preset7.classList.toggle("preset-active", mode === "7");
+  els.presetCustom.classList.toggle("preset-active", mode === "custom");
 }
 
 function switchTab(tab) {

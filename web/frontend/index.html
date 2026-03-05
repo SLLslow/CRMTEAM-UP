@@ -101,8 +101,25 @@
         color: #fff;
         border-color: var(--brand);
         font-weight: 700;
+        cursor: pointer;
       }
-      button.secondary { font-weight: 600; }
+      button.secondary {
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.06s ease;
+      }
+      button.secondary:hover {
+        background: rgba(15, 110, 191, 0.12);
+        border-color: rgba(15, 110, 191, 0.4);
+      }
+      button.secondary:active {
+        transform: translateY(1px);
+      }
+      button.secondary.preset-active {
+        background: var(--brand);
+        color: #fff;
+        border-color: var(--brand);
+      }
       .muted { color: var(--muted); font-size: 13px; }
       .err { color: var(--bad); font-weight: 600; }
       table { width: 100%; border-collapse: collapse; }
