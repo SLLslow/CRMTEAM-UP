@@ -125,6 +125,14 @@
       .err { color: var(--bad); font-weight: 600; }
       table { width: 100%; border-collapse: collapse; }
       th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; }
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .table-wrap table {
+        min-width: 620px;
+      }
       .row { display: flex; gap: 10px; align-items: center; }
       .row.wrap { flex-wrap: wrap; }
       .hidden { display: none !important; }
@@ -157,6 +165,7 @@
         .row { flex-wrap: wrap; }
         .card { padding: 14px; border-radius: 14px; }
         .tabs { margin-bottom: 10px; }
+        th, td { font-size: 13px; padding: 6px; }
       }
     </style>
   </head>
@@ -218,12 +227,14 @@
         <div class="card grid g4" id="summary"></div>
         <div class="card">
           <h3>Менеджер | К-сть угод | Сума | Успішні | Неуспішні</h3>
-          <table>
-            <thead>
-              <tr><th>Менеджер</th><th>Угод</th><th>Сума</th><th>Успішні</th><th>Неуспішні</th></tr>
-            </thead>
-            <tbody id="managerRows"></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Менеджер</th><th>Угод</th><th>Сума</th><th>Успішні</th><th>Неуспішні</th></tr>
+              </thead>
+              <tbody id="managerRows"></tbody>
+            </table>
+          </div>
         </div>
         <div class="card" id="managerDeals"></div>
       </section>
