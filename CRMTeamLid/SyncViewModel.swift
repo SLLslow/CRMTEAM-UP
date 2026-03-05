@@ -1,9 +1,9 @@
 import Foundation
 import Combine
+import UserNotifications
 #if os(macOS)
 import AppKit
 import UniformTypeIdentifiers
-import UserNotifications
 #endif
 
 struct ManagerOption: Identifiable, Hashable {
@@ -204,6 +204,7 @@ final class SyncViewModel: ObservableObject {
     }
 
     func checkForAppUpdates() async {
+        #if os(macOS)
         do {
             let service = BetaUpdateService()
             let release = try await service.fetchLatestRelease(preferBeta: true)
@@ -219,9 +220,14 @@ final class SyncViewModel: ObservableObject {
             availableUpdate = nil
             updateMessage = "Не вдалося перевірити оновлення: \(error.localizedDescription)"
         }
+        #else
+        availableUpdate = nil
+        updateMessage = "Оновлення додатку доступне лише на macOS."
+        #endif
     }
 
     func installAvailableUpdate() async {
+        #if os(macOS)
         guard let update = availableUpdate else { return }
         isInstallingUpdate = true
         defer { isInstallingUpdate = false }
@@ -236,10 +242,13 @@ final class SyncViewModel: ObservableObject {
         } catch {
             updateMessage = "Не вдалося автооновити: \(error.localizedDescription)"
         }
+        #else
+        updateMessage = "Автовстановлення доступне лише на macOS."
+        #endif
     }
 
-    #if os(macOS)
     func chooseBackgroundImage() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -256,9 +265,11 @@ final class SyncViewModel: ObservableObject {
         } catch {
             lastError = "Не вдалося зберегти фон: \(error.localizedDescription)"
         }
+        #endif
     }
 
     func chooseNotificationSound() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -275,6 +286,7 @@ final class SyncViewModel: ObservableObject {
         } catch {
             lastError = "Не вдалося зберегти звук: \(error.localizedDescription)"
         }
+        #endif
     }
 
     func clearNotificationSound() {
@@ -292,7 +304,6 @@ final class SyncViewModel: ObservableObject {
         UserDefaults.standard.removeObject(forKey: Self.backgroundImagePathKey)
         backgroundImageURL = nil
     }
-    #endif
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -482,8 +493,8 @@ final class SyncViewModel: ObservableObject {
         }
     }
 
-    #if os(macOS)
     private func persistBackgroundImage(from sourceURL: URL) throws -> URL {
+        #if os(macOS)
         let destinationFolder = Self.cacheURL.deletingLastPathComponent().appendingPathComponent("Background", isDirectory: true)
         try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
 
@@ -496,9 +507,13 @@ final class SyncViewModel: ObservableObject {
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
 
         return destinationURL
+        #else
+        throw NSError(domain: "CRMTeamLid", code: -1)
+        #endif
     }
 
     private func persistNotificationSound(from sourceURL: URL) throws -> URL {
+        #if os(macOS)
         let destinationFolder = Self.cacheURL.deletingLastPathComponent().appendingPathComponent("Sounds", isDirectory: true)
         try FileManager.default.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
 
@@ -511,6 +526,9 @@ final class SyncViewModel: ObservableObject {
         try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
 
         return destinationURL
+        #else
+        throw NSError(domain: "CRMTeamLid", code: -1)
+        #endif
     }
 
     private func requestNotificationPermission() {
@@ -531,9 +549,11 @@ final class SyncViewModel: ObservableObject {
         )
         UNUserNotificationCenter.current().add(request)
 
+        #if os(macOS)
         if let soundURL = notificationSoundURL {
             NSSound(contentsOf: soundURL, byReference: true)?.play()
         }
+        #endif
     }
 
     private func configureAutoSync() {
@@ -550,7 +570,6 @@ final class SyncViewModel: ObservableObject {
             }
         }
     }
-    #endif
 }
 
 private struct CachedDashboard: Codable {

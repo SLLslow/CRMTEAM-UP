@@ -175,8 +175,12 @@ struct ContentView: View {
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                             ForEach(viewModel.availableStages, id: \.self) { stage in
+                                #if os(macOS)
                                 Toggle(stage, isOn: stageBinding(stage))
                                     .toggleStyle(.checkbox)
+                                #else
+                                Toggle(stage, isOn: stageBinding(stage))
+                                #endif
                             }
                         }
                         .padding(.top, 4)
@@ -286,6 +290,7 @@ struct ContentView: View {
 
                 Divider()
 
+                #if os(macOS)
                 Button("Перевірити оновлення додатку") {
                     Task { await viewModel.checkForAppUpdates() }
                 }
@@ -303,6 +308,7 @@ struct ContentView: View {
                 Text(viewModel.updateMessage)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                #endif
             }
         }
     }

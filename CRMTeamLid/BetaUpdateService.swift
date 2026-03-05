@@ -17,6 +17,7 @@ enum AppUpdateError: LocalizedError {
     case noAppInArchive
     case appLocationNotWritable
     case installScriptFailed
+    case unsupportedPlatform
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +37,8 @@ enum AppUpdateError: LocalizedError {
             return "Немає прав запису в папку застосунку. Перемістіть додаток у доступну папку (наприклад, Desktop або ~/Applications)."
         case .installScriptFailed:
             return "Не вдалося запустити встановлення оновлення."
+        case .unsupportedPlatform:
+            return "Встановлення оновлення доступне лише на macOS."
         }
     }
 }
@@ -89,6 +92,9 @@ struct BetaUpdateService {
     }
 
     func install(update: AppUpdateInfo, over currentAppURL: URL) async throws {
+        #if !os(macOS)
+        throw AppUpdateError.unsupportedPlatform
+        #else
         guard let downloadURL = update.downloadURL else {
             throw AppUpdateError.noDownloadAsset
         }
@@ -148,6 +154,7 @@ struct BetaUpdateService {
         guard launched else {
             throw AppUpdateError.installScriptFailed
         }
+        #endif
     }
 
     private func normalizeVersion(_ tag: String) -> String {
@@ -196,6 +203,7 @@ private struct GitHubAsset: Decodable {
 }
 
 private extension BetaUpdateService {
+    #if os(macOS)
     func resolveTargetAppURL(currentAppURL: URL) throws -> URL {
         let currentDir = currentAppURL.deletingLastPathComponent()
         if FileManager.default.isWritableFile(atPath: currentDir.path) {
@@ -209,14 +217,19 @@ private extension BetaUpdateService {
         }
         return homeApps.appendingPathComponent("CRMTeamLid.app")
     }
+    #endif
 
     func runProcess(launchPath: String, arguments: [String]) throws -> Bool {
+        #if os(macOS)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = arguments
         try process.run()
         process.waitUntilExit()
         return process.terminationStatus == 0
+        #else
+        return false
+        #endif
     }
 
     func findAppBundle(in folder: URL) -> URL? {
