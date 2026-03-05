@@ -11,6 +11,7 @@ import AppKit
 #endif
 
 struct ContentView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel = SyncViewModel()
     @State private var expandedManagerIDs: Set<Int> = []
     @State private var isStagesExpanded = false
@@ -476,11 +477,11 @@ struct ContentView: View {
         content()
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.92))
+            .background(cardBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    .stroke(cardBorderColor, lineWidth: 1)
             )
     }
 
@@ -495,7 +496,7 @@ struct ContentView: View {
             Image(nsImage: image)
                 .resizable()
                 .scaledToFill()
-                .overlay(Color.white.opacity(0.55))
+                .overlay(backgroundOverlayColor)
         } else {
             defaultBackground
         }
@@ -506,10 +507,7 @@ struct ContentView: View {
 
     private var defaultBackground: some View {
         LinearGradient(
-            colors: [
-                Color(red: 0.95, green: 0.97, blue: 1.0),
-                Color(red: 0.96, green: 0.99, blue: 0.96)
-            ],
+            colors: defaultBackgroundColors,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -524,6 +522,31 @@ struct ContentView: View {
         case .dark:
             return .dark
         }
+    }
+
+    private var cardBackgroundColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.92)
+    }
+
+    private var cardBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.16) : Color.gray.opacity(0.2)
+    }
+
+    private var backgroundOverlayColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.45) : Color.white.opacity(0.55)
+    }
+
+    private var defaultBackgroundColors: [Color] {
+        if colorScheme == .dark {
+            return [
+                Color(red: 0.08, green: 0.1, blue: 0.14),
+                Color(red: 0.1, green: 0.13, blue: 0.11)
+            ]
+        }
+        return [
+            Color(red: 0.95, green: 0.97, blue: 1.0),
+            Color(red: 0.96, green: 0.99, blue: 0.96)
+        ]
     }
 }
 
