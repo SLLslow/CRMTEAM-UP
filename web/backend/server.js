@@ -6,7 +6,15 @@ const port = process.env.PORT || 8080;
 const keepinBase = process.env.KEEPINCRM_BASE_URL || "https://api.keepincrm.com/v1";
 const allowedOrigin = process.env.CORS_ORIGIN || "*";
 
-app.use(cors({ origin: allowedOrigin }));
+app.use(cors({
+  origin(origin, callback) {
+    if (isOriginAllowed(origin, allowedOrigin)) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("Not allowed by CORS"));
+  }
+}));
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
@@ -161,3 +169,31 @@ function buildSummary(agreements) {
 app.listen(port, () => {
   console.log(`CRMTeamLid backend listening on :${port}`);
 });
+
+function isOriginAllowed(origin, configValue) {
+  if (!origin) return true; // non-browser clients (curl/health checks)
+  if (!configValue || configValue === "*") return true;
+
+  const rules = String(configValue)
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  return rules.some((rule) => matchesOriginRule(origin, rule));
+}
+
+function matchesOriginRule(origin, rule) {
+  if (rule === "*") return true;
+  if (rule === origin) return true;
+
+  // Allow wildcard subdomain format, e.g. https://*.vercel.app
+  if (rule.includes("*")) {
+    const escaped = rule
+      .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*/g, ".*");
+    const pattern = new RegExp(`^${escaped}$`);
+    return pattern.test(origin);
+  }
+
+  return false;
+}
