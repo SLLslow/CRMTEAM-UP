@@ -1,4 +1,4 @@
-const API_BASE = window.location.hostname === "localhost" ? "http://localhost:8080" : "https://crmteamlid-backend.onrender.com";
+const API_BASE = window.location.hostname === "localhost" ? "http://localhost:8080" : "https://crmteam-up.onrender.com";
 
 const state = {
   agreements: [],
@@ -27,6 +27,10 @@ const els = {
   opacityValue: document.getElementById("opacityValue"),
   autosync: document.getElementById("autosync"),
   notify: document.getElementById("notify")
+  ,
+  bgPick: document.getElementById("bgPick"),
+  bgClear: document.getElementById("bgClear"),
+  bgInput: document.getElementById("bgInput")
 };
 
 init();
@@ -45,6 +49,7 @@ function init() {
 
   applyTheme();
   applyOpacity();
+  applyBackground();
   setupAutosync();
 
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
@@ -71,6 +76,25 @@ function init() {
     if (els.notify.checked && "Notification" in window && Notification.permission === "default") {
       await Notification.requestPermission();
     }
+  });
+
+  els.bgPick.addEventListener("click", () => els.bgInput.click());
+  els.bgClear.addEventListener("click", () => {
+    localStorage.removeItem("crm_bg_dataurl");
+    applyBackground();
+  });
+  els.bgInput.addEventListener("change", () => {
+    const file = els.bgInput.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (dataUrl.startsWith("data:image/")) {
+        localStorage.setItem("crm_bg_dataurl", dataUrl);
+        applyBackground();
+      }
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -119,7 +143,12 @@ async function syncNow() {
     setStatus(`Оновлено: ${data.meta.loaded} угод`);
     notifyDone(`Обмін завершено: ${data.meta.loaded} угод`);
   } catch (e) {
-    setError(e.message || "Помилка");
+    const message = e?.message || "";
+    if (message === "Load failed" || message === "Failed to fetch") {
+      setError("Немає відповіді від backend. Перевір Render URL/CORS і /health.");
+    } else {
+      setError(message || "Помилка");
+    }
     setStatus("Оновлення з помилкою");
     notifyDone("Обмін завершено з помилкою");
   } finally {
@@ -179,6 +208,15 @@ function applyOpacity() {
     document.documentElement.style.setProperty("--card", `rgba(15,20,27,${opacity.toFixed(2)})`);
   }
   els.opacityValue.textContent = `${percent}%`;
+}
+
+function applyBackground() {
+  const bg = localStorage.getItem("crm_bg_dataurl");
+  if (bg) {
+    document.body.style.background = `center/cover fixed no-repeat url('${bg}')`;
+    return;
+  }
+  document.body.style.background = "radial-gradient(circle at 15% 10%, var(--bg-2), var(--bg))";
 }
 
 function setupAutosync() {
