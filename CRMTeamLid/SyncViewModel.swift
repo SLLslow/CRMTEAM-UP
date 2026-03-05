@@ -75,7 +75,6 @@ final class SyncViewModel: ObservableObject {
     private var autoSyncTask: Task<Void, Never>?
 
     init() {
-        loadCachedDashboard()
         loadBackgroundImage()
         loadSettings()
 
@@ -146,7 +145,9 @@ final class SyncViewModel: ObservableObject {
 
         configureAutoSync()
 
-        if refreshOnLaunch, rememberToken, !keepinApiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        Task { await preloadDashboardFromBackend() }
+
+        if refreshOnLaunch {
             Task { await loadDashboard() }
         }
     }
@@ -157,18 +158,13 @@ final class SyncViewModel: ObservableObject {
 
     func loadDashboard() async {
         lastError = ""
-
-        guard !keepinApiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            lastError = "Вкажіть KeepinCRM API token."
-            return
-        }
         guard !selectedManagerIDs.isEmpty else {
             lastError = "Оберіть хоча б одного менеджера."
             return
         }
 
         isLoading = true
-        statusMessage = "Завантажую дані KeepinCRM..."
+        statusMessage = "Завантажую дані з backend..."
         defer { isLoading = false }
 
         do {
@@ -178,28 +174,53 @@ final class SyncViewModel: ObservableObject {
             let agreementsTo = Self.dateFormatter.string(from: agreementsToDate)
             let keepin = KeepinCRMService(apiToken: keepinApiToken)
 
-            let allAgreements = try await keepin.fetchAllAgreements(from: agreementsFrom, to: agreementsTo) { [weak self] progress in
-                Task { @MainActor in
-                    self?.statusMessage = progress
-                }
-            }
-            let agreements = allAgreements.filter { agreement in
-                guard let managerId = agreement.mainResponsible?.id else { return false }
-                return selectedManagerIDs.contains(managerId)
-            }
+            let response = try await keepin.syncDashboardViaBackend(
+                from: agreementsFrom,
+                to: agreementsTo,
+                managerIDs: Array(selectedManagerIDs)
+            )
+            let agreements = response.agreements.map { $0.toCRMAgreement() }
             let clients = Self.uniqueClients(from: agreements)
 
             self.agreements = agreements.sorted { $0.id > $1.id }
             self.clients = clients.sorted { $0.id > $1.id }
             self.summary = AnalyticsBuilder.build(agreements: agreements, clients: clients)
             normalizeSelectedStages()
-            statusMessage = "Аналітика оновлена: \(agreements.count) угод за період \(agreementsFrom) - \(agreementsTo)"
-            saveCachedDashboard()
+            let sourceLoaded = response.meta?.sourceLoaded ?? agreements.count
+            statusMessage = "Аналітика оновлена: \(agreements.count) угод (CRM джерело: \(sourceLoaded))"
             notifyExchangeFinished(success: true)
         } catch {
             lastError = error.localizedDescription
             statusMessage = "Оновлення з помилкою"
             notifyExchangeFinished(success: false)
+        }
+    }
+
+    private func preloadDashboardFromBackend() async {
+        guard !selectedManagerIDs.isEmpty else { return }
+
+        do {
+            let agreementsFromDate = min(orderDateFrom, orderDateTo)
+            let agreementsToDate = max(orderDateFrom, orderDateTo)
+            let agreementsFrom = Self.dateFormatter.string(from: agreementsFromDate)
+            let agreementsTo = Self.dateFormatter.string(from: agreementsToDate)
+
+            let keepin = KeepinCRMService(apiToken: keepinApiToken)
+            let agreements = try await keepin.fetchDashboardFromBackend(
+                from: agreementsFrom,
+                to: agreementsTo,
+                managerIDs: Array(selectedManagerIDs)
+            )
+            guard !agreements.isEmpty else { return }
+
+            let clients = Self.uniqueClients(from: agreements)
+            self.agreements = agreements.sorted { $0.id > $1.id }
+            self.clients = clients.sorted { $0.id > $1.id }
+            self.summary = AnalyticsBuilder.build(agreements: agreements, clients: clients)
+            normalizeSelectedStages()
+            statusMessage = "Завантажено з БД backend (\(agreements.count) угод)"
+        } catch {
+            // Silent fallback to current in-memory state.
         }
     }
 
@@ -373,53 +394,6 @@ final class SyncViewModel: ObservableObject {
         }
     }
 
-    private func loadCachedDashboard() {
-        do {
-            let data = try Data(contentsOf: Self.cacheURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let cached = try decoder.decode(CachedDashboard.self, from: data)
-
-            orderDateFrom = cached.orderDateFrom
-            orderDateTo = cached.orderDateTo
-            dataDateFrom = cached.dataDateFrom
-            dataDateTo = cached.dataDateTo
-            selectedManagerIDs = Set(cached.selectedManagerIDs)
-            selectedStages = Set(cached.selectedStages)
-            agreements = cached.agreements.map { $0.toModel() }.sorted { $0.id > $1.id }
-            clients = Self.uniqueClients(from: agreements).sorted { $0.id > $1.id }
-            summary = AnalyticsBuilder.build(agreements: agreements, clients: clients)
-            normalizeSelectedStages()
-            statusMessage = "Завантажено збережені дані (\(agreements.count) угод)"
-        } catch {
-            // No cache yet or cache is invalid - ignore.
-        }
-    }
-
-    private func saveCachedDashboard() {
-        do {
-            let payload = CachedDashboard(
-                savedAt: Date(),
-                agreements: agreements.map(CachedAgreement.init),
-                selectedManagerIDs: Array(selectedManagerIDs),
-                selectedStages: Array(selectedStages),
-                orderDateFrom: orderDateFrom,
-                orderDateTo: orderDateTo,
-                dataDateFrom: dataDateFrom,
-                dataDateTo: dataDateTo
-            )
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(payload)
-
-            let folderURL = Self.cacheURL.deletingLastPathComponent()
-            try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-            try data.write(to: Self.cacheURL, options: .atomic)
-        } catch {
-            // Cache write failure should not block app flow.
-        }
-    }
-
     private static var cacheURL: URL {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -569,107 +543,5 @@ final class SyncViewModel: ObservableObject {
                 await self.loadDashboard()
             }
         }
-    }
-}
-
-private struct CachedDashboard: Codable {
-    let savedAt: Date
-    let agreements: [CachedAgreement]
-    let selectedManagerIDs: [Int]
-    let selectedStages: [String]
-    let orderDateFrom: Date
-    let orderDateTo: Date
-    let dataDateFrom: Date
-    let dataDateTo: Date
-}
-
-private struct CachedAgreement: Codable {
-    let id: Int
-    let title: String?
-    let orderedAt: String?
-    let createdAt: String?
-    let updatedAt: String?
-    let total: Double?
-    let result: String?
-    let managerId: Int?
-    let managerName: String?
-    let stageName: String?
-    let sourceId: Int?
-    let sourceName: String?
-    let client: CachedClient?
-
-    init(_ model: CRMAgreement) {
-        id = model.id
-        title = model.title
-        orderedAt = model.orderedAt
-        createdAt = model.createdAt
-        updatedAt = model.updatedAt
-        total = model.total
-        result = model.result
-        managerId = model.mainResponsible?.id
-        managerName = model.mainResponsible?.name
-        stageName = model.stage?.name
-        sourceId = model.source?.id
-        sourceName = model.source?.name
-        if let modelClient = model.client {
-            client = CachedClient(modelClient)
-        } else {
-            client = nil
-        }
-    }
-
-    func toModel() -> CRMAgreement {
-        CRMAgreement(
-            id: id,
-            title: title,
-            orderedAt: orderedAt,
-            createdAt: createdAt,
-            updatedAt: updatedAt,
-            total: total,
-            result: result,
-            mainResponsible: CRMUser(id: managerId, name: managerName),
-            stage: CRMAgreementStage(name: stageName),
-            source: CRMSource(id: sourceId, name: sourceName),
-            client: client?.toModel()
-        )
-    }
-}
-
-private struct CachedClient: Codable {
-    let id: Int
-    let person: String?
-    let company: String?
-    let email: String?
-    let phones: [String]?
-    let lead: Bool?
-    let sourceId: Int?
-    let sourceName: String?
-    let managerId: Int?
-    let managerName: String?
-
-    init(_ model: CRMClient) {
-        id = model.id
-        person = model.person
-        company = model.company
-        email = model.email
-        phones = model.phones
-        lead = model.lead
-        sourceId = model.source?.id
-        sourceName = model.source?.name
-        managerId = model.mainResponsible?.id
-        managerName = model.mainResponsible?.name
-    }
-
-    func toModel() -> CRMClient {
-        CRMClient(
-            id: id,
-            person: person,
-            company: company,
-            email: email,
-            phones: phones,
-            lead: lead,
-            source: CRMSource(id: sourceId, name: sourceName),
-            mainResponsible: CRMUser(id: managerId, name: managerName)
-        )
     }
 }

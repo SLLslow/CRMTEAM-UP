@@ -7,6 +7,7 @@ enum KeepinCRMError: LocalizedError {
     case rateLimited
     case serverError(code: Int)
     case network(message: String)
+    case backend(message: String)
 
     var errorDescription: String? {
         switch self {
@@ -22,6 +23,8 @@ enum KeepinCRMError: LocalizedError {
             return "KeepinCRM API повернув помилку: \(code)."
         case .network(let message):
             return message
+        case .backend(let message):
+            return message
         }
     }
 }
@@ -31,12 +34,40 @@ struct KeepinCRMService {
     private let apiToken: String
     private let session: URLSession
     private let decoder: JSONDecoder
+    private let backendBaseURL: String
 
-    init(apiToken: String, session: URLSession = .shared) {
+    init(apiToken: String, session: URLSession = .shared, backendBaseURL: String = "https://crmteam-up.onrender.com") {
         self.apiToken = apiToken
         self.session = session
+        self.backendBaseURL = backendBaseURL
         self.decoder = JSONDecoder()
         self.decoder.keyDecodingStrategy = .convertFromSnakeCase
+    }
+
+    func fetchDashboardFromBackend(from: String, to: String, managerIDs: [Int]) async throws -> [CRMAgreement] {
+        let response: BackendSyncResponse = try await backendRequest(
+            path: "/api/data",
+            body: SyncRequestBody(
+                token: nil,
+                dateFrom: from,
+                dateTo: to,
+                managerIds: managerIDs
+            )
+        )
+        return response.agreements.map { $0.toCRMAgreement() }
+    }
+
+    func syncDashboardViaBackend(from: String, to: String, managerIDs: [Int]) async throws -> BackendSyncResponse {
+        let tokenValue = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await backendRequest(
+            path: "/api/sync",
+            body: SyncRequestBody(
+                token: tokenValue.isEmpty ? nil : tokenValue,
+                dateFrom: from,
+                dateTo: to,
+                managerIds: managerIDs
+            )
+        )
     }
 
     func fetchAllAgreements(from: String, to: String, progress: @escaping (String) -> Void) async throws -> [CRMAgreement] {
@@ -130,5 +161,121 @@ struct KeepinCRMService {
         default:
             throw KeepinCRMError.serverError(code: httpResponse.statusCode)
         }
+    }
+
+    private func backendRequest<Response: Decodable>(path: String, body: SyncRequestBody) async throws -> Response {
+        guard let url = URL(string: backendBaseURL + path) else {
+            throw KeepinCRMError.badURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            switch urlError.code {
+            case .cannotFindHost:
+                throw KeepinCRMError.network(message: "Не вдалось знайти сервер backend. Перевірте інтернет або Render URL.")
+            case .notConnectedToInternet:
+                throw KeepinCRMError.network(message: "Немає інтернет-зʼєднання.")
+            case .timedOut:
+                throw KeepinCRMError.network(message: "Таймаут запиту до backend. Спробуйте ще раз.")
+            default:
+                throw KeepinCRMError.network(message: "Мережева помилка: \(urlError.localizedDescription)")
+            }
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw KeepinCRMError.badResponse
+        }
+
+        if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
+            return try JSONDecoder().decode(Response.self, from: data)
+        }
+
+        if let backendError = try? JSONDecoder().decode(BackendErrorResponse.self, from: data),
+           !backendError.error.isEmpty {
+            throw KeepinCRMError.backend(message: backendError.error)
+        }
+        throw KeepinCRMError.serverError(code: httpResponse.statusCode)
+    }
+}
+
+private struct SyncRequestBody: Encodable {
+    let token: String?
+    let dateFrom: String
+    let dateTo: String
+    let managerIds: [Int]
+}
+
+private struct BackendErrorResponse: Decodable {
+    let error: String
+}
+
+struct BackendSyncResponse: Decodable {
+    let summary: BackendSummary?
+    let stages: [String]?
+    let agreements: [BackendAgreement]
+    let meta: BackendMeta?
+}
+
+struct BackendMeta: Decodable {
+    let loaded: Int
+    let sourceLoaded: Int
+}
+
+struct BackendSummary: Decodable {
+    let totalRevenue: Double?
+    let successfulRevenue: Double?
+    let failedRevenue: Double?
+    let agreementsCount: Int?
+    let wonCount: Int?
+    let failedCount: Int?
+}
+
+struct BackendAgreement: Decodable {
+    let id: Int
+    let title: String?
+    let orderedAt: String?
+    let createdAt: String?
+    let updatedAt: String?
+    let total: Double?
+    let result: String?
+    let managerId: Int?
+    let managerName: String?
+    let stageName: String?
+    let sourceName: String?
+    let clientId: Int?
+    let clientName: String?
+
+    func toCRMAgreement() -> CRMAgreement {
+        CRMAgreement(
+            id: id,
+            title: title,
+            orderedAt: orderedAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            total: total,
+            result: result,
+            mainResponsible: CRMUser(id: managerId, name: managerName),
+            stage: CRMAgreementStage(name: stageName),
+            source: CRMSource(id: nil, name: sourceName),
+            client: CRMClient(
+                id: clientId ?? 0,
+                person: clientName,
+                company: nil,
+                email: nil,
+                phones: nil,
+                lead: nil,
+                source: nil,
+                mainResponsible: CRMUser(id: managerId, name: managerName)
+            )
+        )
     }
 }
