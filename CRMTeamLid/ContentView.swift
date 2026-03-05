@@ -351,6 +351,12 @@ struct ContentView: View {
                     infoCell("Успішні", "\(summary.wonCount)")
                     infoCell("Неуспішні", "\(summary.failedCount)")
                 }
+                HStack {
+                    infoCell("Сума успішних", currency(summary.successfulRevenue))
+                    infoCell("Сума неуспішних", currency(summary.failedRevenue))
+                    Spacer()
+                    Spacer()
+                }
             }
         }
     }

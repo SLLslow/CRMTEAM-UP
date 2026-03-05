@@ -126,17 +126,18 @@ app.post("/api/sync", async (req, res) => {
     const normalizedManagerIds = normalizeManagerIds(managerIds);
 
     const lastSyncAt = await getLastSyncAt();
-    const fetched = await fetchAllAgreements({
+    const fetchedRaw = await fetchAllAgreements({
       token,
       dateFrom,
       dateTo,
       updatedFrom: lastSyncAt
     });
+    const fetched = deduplicateAgreements(fetchedRaw);
 
     if (pool && fetched.length > 0) {
       await upsertAgreements(fetched);
     }
-    await setLastSyncAt(new Date().toISOString());
+    await setLastSyncAt(nextSyncCheckpoint(lastSyncAt, fetched));
 
     const agreements = pool
       ? await queryAgreements({ dateFrom, dateTo, managerIds: normalizedManagerIds })
@@ -259,6 +260,12 @@ function normalizeAgreement(item) {
 
 function buildSummary(agreements) {
   const totalRevenue = agreements.reduce((acc, a) => acc + (Number(a.total) || 0), 0);
+  const successfulRevenue = agreements
+    .filter((a) => a.result === "successful")
+    .reduce((acc, a) => acc + (Number(a.total) || 0), 0);
+  const failedRevenue = agreements
+    .filter((a) => a.result === "failed")
+    .reduce((acc, a) => acc + (Number(a.total) || 0), 0);
   const agreementsCount = agreements.length;
   const wonCount = agreements.filter((a) => a.result === "successful").length;
   const failedCount = agreements.filter((a) => a.result === "failed").length;
@@ -287,11 +294,38 @@ function buildSummary(agreements) {
 
   return {
     totalRevenue,
+    successfulRevenue,
+    failedRevenue,
     agreementsCount,
     wonCount,
     failedCount,
     managerItems
   };
+}
+
+function deduplicateAgreements(agreements) {
+  const map = new Map();
+  for (const agreement of agreements) {
+    if (!agreement?.id) continue;
+    map.set(agreement.id, agreement);
+  }
+  return [...map.values()];
+}
+
+function nextSyncCheckpoint(lastSyncAt, agreements) {
+  const timestamps = agreements
+    .map((a) => a.updatedAt || a.orderedAt || a.createdAt)
+    .filter(Boolean)
+    .map((v) => new Date(v))
+    .filter((d) => !Number.isNaN(d.getTime()))
+    .map((d) => d.toISOString());
+
+  if (timestamps.length > 0) {
+    return timestamps.sort().at(-1);
+  }
+
+  if (lastSyncAt) return lastSyncAt;
+  return new Date().toISOString();
 }
 
 function normalizeManagerIds(managerIds) {
@@ -395,6 +429,9 @@ async function upsertAgreements(agreements) {
           client_name = excluded.client_name,
           raw_json = excluded.raw_json,
           synced_at = now()
+        where agreements.updated_at is null
+          or excluded.updated_at is null
+          or excluded.updated_at >= agreements.updated_at
       `;
 
       await client.query(sql, values);

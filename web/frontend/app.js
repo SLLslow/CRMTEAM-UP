@@ -316,7 +316,9 @@ function renderData() {
     metric("Угод", summary.agreementsCount),
     metric("Сума", `${summary.totalRevenue.toFixed(2)} грн`),
     metric("Успішні", summary.wonCount),
-    metric("Неуспішні", summary.failedCount)
+    metric("Неуспішні", summary.failedCount),
+    metric("Сума успішних", `${summary.successfulRevenue.toFixed(2)} грн`),
+    metric("Сума неуспішних", `${summary.failedRevenue.toFixed(2)} грн`)
   ].join("");
 
   if (summary.agreementsCount === 0) {
@@ -368,6 +370,12 @@ function getAvailableStages(agreements) {
 
 function buildSummary(agreements) {
   const totalRevenue = agreements.reduce((acc, a) => acc + (Number(a.total) || 0), 0);
+  const successfulRevenue = agreements
+    .filter((a) => a.result === "successful")
+    .reduce((acc, a) => acc + (Number(a.total) || 0), 0);
+  const failedRevenue = agreements
+    .filter((a) => a.result === "failed")
+    .reduce((acc, a) => acc + (Number(a.total) || 0), 0);
   const agreementsCount = agreements.length;
   const wonCount = agreements.filter((a) => a.result === "successful").length;
   const failedCount = agreements.filter((a) => a.result === "failed").length;
@@ -392,7 +400,15 @@ function buildSummary(agreements) {
   }
 
   const managerItems = [...managerMap.values()].sort((a, b) => b.revenue - a.revenue);
-  return { totalRevenue, agreementsCount, wonCount, failedCount, managerItems };
+  return {
+    totalRevenue,
+    successfulRevenue,
+    failedRevenue,
+    agreementsCount,
+    wonCount,
+    failedCount,
+    managerItems
+  };
 }
 
 function metric(label, value) {
@@ -411,12 +427,19 @@ function applyTheme() {
 function applyOpacity() {
   const percent = Number(els.opacity.value);
   const opacity = Math.max(0.15, Math.min(1, percent / 100));
-  if (document.body.getAttribute("data-theme") === "dark") {
+  if (isDarkThemeActive()) {
     document.documentElement.style.setProperty("--card", `rgba(15,20,27,${opacity.toFixed(2)})`);
   } else {
     document.documentElement.style.setProperty("--card", `rgba(255,255,255,${opacity.toFixed(2)})`);
   }
   els.opacityValue.textContent = `${percent}%`;
+}
+
+function isDarkThemeActive() {
+  const explicitTheme = document.body.getAttribute("data-theme");
+  if (explicitTheme === "dark") return true;
+  if (explicitTheme === "light") return false;
+  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 function applyBackground() {

@@ -19,6 +19,8 @@ struct SourceAnalyticsItem: Identifiable {
 
 struct AnalyticsSummary {
     let totalRevenue: Double
+    let successfulRevenue: Double
+    let failedRevenue: Double
     let agreementsCount: Int
     let wonCount: Int
     let failedCount: Int
@@ -34,6 +36,12 @@ struct AnalyticsSummary {
 enum AnalyticsBuilder {
     static func build(agreements: [CRMAgreement], clients: [CRMClient]) -> AnalyticsSummary {
         let totalRevenue = agreements.reduce(0) { $0 + ($1.total ?? 0) }
+        let successfulRevenue = agreements
+            .filter { $0.result == "successful" }
+            .reduce(0) { $0 + ($1.total ?? 0) }
+        let failedRevenue = agreements
+            .filter { $0.result == "failed" }
+            .reduce(0) { $0 + ($1.total ?? 0) }
         let wonCount = agreements.filter { $0.result == "successful" }.count
         let failedCount = agreements.filter { $0.result == "failed" }.count
         let activeCount = agreements.filter { $0.result == "archived" || $0.result == nil }.count
@@ -67,6 +75,8 @@ enum AnalyticsBuilder {
 
         return AnalyticsSummary(
             totalRevenue: totalRevenue,
+            successfulRevenue: successfulRevenue,
+            failedRevenue: failedRevenue,
             agreementsCount: agreements.count,
             wonCount: wonCount,
             failedCount: failedCount,
