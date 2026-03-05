@@ -15,10 +15,11 @@ app.get("/health", (_req, res) => {
 
 app.post("/api/sync", async (req, res) => {
   try {
-    const { token, dateFrom, dateTo, managerIds } = req.body ?? {};
+    const { token: incomingToken, dateFrom, dateTo, managerIds } = req.body ?? {};
+    const token = incomingToken || process.env.KEEPINCRM_TOKEN || "";
 
     if (!token || typeof token !== "string") {
-      return res.status(400).json({ error: "Token is required" });
+      return res.status(400).json({ error: "Token is required (set KEEPINCRM_TOKEN on backend)." });
     }
     if (!dateFrom || !dateTo) {
       return res.status(400).json({ error: "dateFrom and dateTo are required" });

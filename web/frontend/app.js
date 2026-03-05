@@ -16,7 +16,6 @@ const els = {
     settings: document.getElementById("settings")
   },
   token: document.getElementById("token"),
-  rememberToken: document.getElementById("rememberToken"),
   from: document.getElementById("from"),
   to: document.getElementById("to"),
   sync: document.getElementById("sync"),
@@ -56,10 +55,7 @@ function init() {
   els.to.value = localStorage.getItem("crm_to") || toDefault;
   els.dataFrom.value = localStorage.getItem("crm_data_from") || els.from.value;
   els.dataTo.value = localStorage.getItem("crm_data_to") || els.to.value;
-
-  const remember = localStorage.getItem("crm_remember_token") === "1";
-  els.rememberToken.checked = remember;
-  els.token.value = remember ? localStorage.getItem("crm_token") || "" : "";
+  els.token.value = "****************";
 
   els.theme.value = localStorage.getItem("crm_theme") || "system";
   els.opacity.value = localStorage.getItem("crm_panel_opacity") || "90";
@@ -86,14 +82,6 @@ function init() {
   els.dataTo.addEventListener("change", () => {
     localStorage.setItem("crm_data_to", els.dataTo.value);
     renderData();
-  });
-
-  els.rememberToken.addEventListener("change", () => {
-    localStorage.setItem("crm_remember_token", els.rememberToken.checked ? "1" : "0");
-    if (!els.rememberToken.checked) {
-      localStorage.removeItem("crm_token");
-      els.token.value = "";
-    }
   });
 
   els.theme.addEventListener("change", () => {
@@ -191,16 +179,6 @@ function selectedManagerIds() {
 }
 
 async function syncNow() {
-  const token = els.token.value.trim();
-  if (!token) {
-    setError("Вкажи токен KeepinCRM");
-    return;
-  }
-
-  if (els.rememberToken.checked) {
-    localStorage.setItem("crm_token", token);
-  }
-
   setError("");
   setStatus("Завантажую...");
   els.sync.disabled = true;
@@ -210,7 +188,6 @@ async function syncNow() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        token,
         dateFrom: els.from.value,
         dateTo: els.to.value,
         managerIds: selectedManagerIds()

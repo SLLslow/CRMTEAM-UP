@@ -15,6 +15,7 @@ Browser talks to your backend, backend talks to KeepinCRM.
 4. Start Command: `npm start`
 5. Add env vars:
    - `KEEPINCRM_BASE_URL=https://api.keepincrm.com/v1`
+   - `KEEPINCRM_TOKEN=<your KeepinCRM X-Auth-Token>`
    - `CORS_ORIGIN=https://YOUR-VERCEL-DOMAIN.vercel.app`
 
 After deploy you get backend URL, example:

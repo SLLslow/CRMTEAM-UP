@@ -109,14 +109,6 @@
 
       <section id="exchange" class="panel">
         <div class="card grid g2">
-          <label>
-            Токен KeepinCRM
-            <input id="token" type="password" placeholder="X-Auth-Token" />
-          </label>
-          <label style="display:flex;align-items:end;gap:8px;">
-            <input id="rememberToken" type="checkbox" style="width:auto;" /> Запам'ятати токен
-          </label>
-
           <label>Період від <input id="from" type="date" /></label>
           <label>Період до <input id="to" type="date" /></label>
           <div>
@@ -167,6 +159,10 @@
 
       <section id="settings" class="panel hidden">
         <div class="card grid g2">
+          <label>
+            Токен KeepinCRM (встановлено розробником)
+            <input id="token" type="password" value="****************" readonly autocomplete="off" />
+          </label>
           <label>
             Тема
             <select id="theme">
