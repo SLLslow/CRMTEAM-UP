@@ -86,14 +86,16 @@
       button.secondary { font-weight: 600; }
       .muted { color: var(--muted); font-size: 13px; }
       .err { color: var(--bad); font-weight: 600; }
-      .ok { color: var(--ok); font-weight: 600; }
       table { width: 100%; border-collapse: collapse; }
       th, td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 14px; }
       .row { display: flex; gap: 10px; align-items: center; }
       .hidden { display: none !important; }
       .manager-block summary { cursor: pointer; font-weight: 700; margin-bottom: 8px; }
+      .stages-grid { columns: 2; column-gap: 20px; }
+      .stages-grid label { display: block; margin-bottom: 6px; break-inside: avoid; }
       @media (max-width: 900px) {
         .g2, .g4 { grid-template-columns: 1fr; }
+        .stages-grid { columns: 1; }
       }
     </style>
   </head>
@@ -111,7 +113,10 @@
             Токен KeepinCRM
             <input id="token" type="password" placeholder="X-Auth-Token" />
           </label>
-          <div></div>
+          <label style="display:flex;align-items:end;gap:8px;">
+            <input id="rememberToken" type="checkbox" style="width:auto;" /> Запам'ятати токен
+          </label>
+
           <label>Період від <input id="from" type="date" /></label>
           <label>Період до <input id="to" type="date" /></label>
           <div>
@@ -132,6 +137,21 @@
       </section>
 
       <section id="data" class="panel hidden">
+        <div class="card grid g2">
+          <label>Показувати угоди: від <input id="dataFrom" type="date" /></label>
+          <label>Показувати угоди: до <input id="dataTo" type="date" /></label>
+          <div style="grid-column:1/-1;">
+            <div class="row" style="justify-content:space-between; margin-bottom:8px;">
+              <b>Етапи</b>
+              <div class="row">
+                <button id="stagesAll" type="button" class="secondary">Усі</button>
+                <button id="stagesClear" type="button" class="secondary">Очистити</button>
+              </div>
+            </div>
+            <div id="stages" class="stages-grid"></div>
+          </div>
+        </div>
+
         <div class="card grid g4" id="summary"></div>
         <div class="card">
           <h3>Менеджер | К-сть угод | Сума | Успішні | Неуспішні</h3>
@@ -168,9 +188,21 @@
               <option value="60">Кожну 1 годину</option>
             </select>
           </label>
-          <label>
-            <input id="notify" type="checkbox" /> Сповіщення про завершення обміну
+          <label style="display:flex;align-items:end;gap:8px;">
+            <input id="refreshOnLaunch" type="checkbox" style="width:auto;" /> Оновлювати дані при запуску
           </label>
+          <label style="display:flex;align-items:end;gap:8px;">
+            <input id="notify" type="checkbox" style="width:auto;" /> Сповіщення про завершення обміну
+          </label>
+          <div>
+            <b>Звук сповіщення</b>
+            <div class="row" style="margin-top:8px;">
+              <button id="soundPick" type="button" class="secondary">Обрати звук</button>
+              <button id="soundClear" type="button" class="secondary">Скинути звук</button>
+              <button id="soundTest" type="button" class="secondary">Тест</button>
+            </div>
+            <input id="soundInput" type="file" accept="audio/*" class="hidden" />
+          </div>
           <div>
             <b>Фон</b>
             <div class="row" style="margin-top:8px;">
