@@ -75,6 +75,7 @@ async function init() {
 
   bindEvents();
   updatePresetButtons();
+  setupThemeWatcher();
 
   await loadFromDb();
 }
@@ -435,7 +436,8 @@ function metric(label, value) {
 function applyTheme() {
   const theme = els.theme.value;
   if (theme === "system") {
-    document.body.removeAttribute("data-theme");
+    const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.body.setAttribute("data-theme", prefersDark ? "dark" : "light");
     return;
   }
   document.body.setAttribute("data-theme", theme);
@@ -457,6 +459,17 @@ function isDarkThemeActive() {
   if (explicitTheme === "dark") return true;
   if (explicitTheme === "light") return false;
   return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function setupThemeWatcher() {
+  if (!window.matchMedia) return;
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener?.("change", () => {
+    if (els.theme.value === "system") {
+      applyTheme();
+      applyOpacity();
+    }
+  });
 }
 
 function applyBackground() {
