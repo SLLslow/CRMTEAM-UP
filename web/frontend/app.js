@@ -4,7 +4,8 @@ const state = {
   agreements: [],
   autoSyncTimer: null,
   selectedStages: new Set(),
-  soundDataUrl: ""
+  soundDataUrl: "",
+  bgDataUrl: ""
 };
 
 const els = {
@@ -66,6 +67,7 @@ function init() {
   els.notify.checked = localStorage.getItem("crm_notify") === "1";
 
   state.soundDataUrl = localStorage.getItem("crm_sound_dataurl") || "";
+  state.bgDataUrl = localStorage.getItem("crm_bg_dataurl") || "";
 
   applyTheme();
   applyOpacity();
@@ -119,30 +121,28 @@ function init() {
 
   els.bgPick.addEventListener("click", () => els.bgInput.click());
   els.bgClear.addEventListener("click", () => {
+    state.bgDataUrl = "";
     localStorage.removeItem("crm_bg_dataurl");
     applyBackground();
   });
-  els.bgInput.addEventListener("change", () => {
+  els.bgInput.addEventListener("change", async () => {
     const file = els.bgInput.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result || "");
-      if (dataUrl.startsWith("data:image/")) {
-        document.body.style.backgroundImage = `url("${dataUrl}")`;
-        document.body.style.backgroundPosition = "center";
-        document.body.style.backgroundSize = "cover";
-        document.body.style.backgroundRepeat = "no-repeat";
-        document.body.style.backgroundAttachment = "fixed";
-        try {
-          localStorage.setItem("crm_bg_dataurl", dataUrl);
-        } catch (_) {
-          setError("Фото фону завелике для збереження в браузері. Обери менший файл.");
-        }
-        applyBackground();
-      }
-    };
-    reader.readAsDataURL(file);
+    const dataUrl = await prepareBackgroundDataUrl(file);
+    if (!dataUrl) {
+      setError("Не вдалося обробити фото фону.");
+      return;
+    }
+
+    state.bgDataUrl = dataUrl;
+    applyBackground();
+    setError("");
+
+    try {
+      localStorage.setItem("crm_bg_dataurl", dataUrl);
+    } catch (_) {
+      setError("Фото фону завелике для збереження. Фон працює лише до перезавантаження сторінки.");
+    }
   });
 
   els.soundPick.addEventListener("click", () => els.soundInput.click());
@@ -375,7 +375,7 @@ function applyOpacity() {
 }
 
 function applyBackground() {
-  const bg = localStorage.getItem("crm_bg_dataurl");
+  const bg = state.bgDataUrl || localStorage.getItem("crm_bg_dataurl");
   if (bg) {
     document.body.style.backgroundImage = `url("${bg}")`;
     document.body.style.backgroundPosition = "center";
@@ -386,6 +386,53 @@ function applyBackground() {
   }
   document.body.style.backgroundImage = "";
   document.body.style.background = "radial-gradient(circle at 15% 10%, var(--bg-2), var(--bg))";
+}
+
+async function prepareBackgroundDataUrl(file) {
+  const original = await fileToDataUrl(file);
+  if (!original || !original.startsWith("data:image/")) return null;
+
+  try {
+    return await resizeImageDataUrl(original, 1600, 0.82);
+  } catch (_) {
+    return original;
+  }
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
+function resizeImageDataUrl(dataUrl, maxSide, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      if (!w || !h) return reject(new Error("Invalid image"));
+
+      const scale = Math.min(1, maxSide / Math.max(w, h));
+      const targetW = Math.max(1, Math.round(w * scale));
+      const targetH = Math.max(1, Math.round(h * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("No canvas context"));
+      ctx.drawImage(img, 0, 0, targetW, targetH);
+
+      const output = canvas.toDataURL("image/jpeg", quality);
+      resolve(output);
+    };
+    img.onerror = () => reject(new Error("Image load error"));
+    img.src = dataUrl;
+  });
 }
 
 function setupAutosync() {
