@@ -116,12 +116,6 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(viewModel.isLoading)
 
-                Button("Перевірити оновлення додатку") {
-                    Task { await viewModel.checkForAppUpdates() }
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isInstallingUpdate)
-
                 if viewModel.availableUpdate != nil {
                     Button(viewModel.isInstallingUpdate ? "Встановлення..." : "Встановити оновлення автоматично") {
                         Task { await viewModel.installAvailableUpdate() }
@@ -289,6 +283,26 @@ struct ContentView: View {
                     }
                 }
                 .pickerStyle(.menu)
+
+                Divider()
+
+                Button("Перевірити оновлення додатку") {
+                    Task { await viewModel.checkForAppUpdates() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(viewModel.isInstallingUpdate)
+
+                if viewModel.availableUpdate != nil {
+                    Button(viewModel.isInstallingUpdate ? "Встановлення..." : "Встановити оновлення автоматично") {
+                        Task { await viewModel.installAvailableUpdate() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(viewModel.isInstallingUpdate)
+                }
+
+                Text(viewModel.updateMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
