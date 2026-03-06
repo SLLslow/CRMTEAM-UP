@@ -42,3 +42,19 @@ create table if not exists sync_logs (
 );
 
 create index if not exists idx_sync_logs_started_at on sync_logs (started_at desc);
+
+create table if not exists app_users (
+  id bigserial primary key,
+  email text not null unique,
+  password_hash text not null,
+  full_name text,
+  is_admin boolean not null default false,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_app_users_email on app_users (email);
+
+alter table app_users
+  add column if not exists is_admin boolean not null default false;

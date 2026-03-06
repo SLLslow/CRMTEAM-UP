@@ -5,10 +5,28 @@ const state = {
   autoSyncTimer: null,
   selectedStages: new Set(),
   soundDataUrl: "",
-  bgDataUrl: ""
+  bgDataUrl: "",
+  authToken: "",
+  authMode: "login",
+  user: null
 };
 
 const els = {
+  authGate: document.getElementById("authGate"),
+  appRoot: document.getElementById("appRoot"),
+  authModeLogin: document.getElementById("authModeLogin"),
+  authModeRegister: document.getElementById("authModeRegister"),
+  authNameWrap: document.getElementById("authNameWrap"),
+  authName: document.getElementById("authName"),
+  authEmail: document.getElementById("authEmail"),
+  authPassword: document.getElementById("authPassword"),
+  authSubmit: document.getElementById("authSubmit"),
+  authError: document.getElementById("authError"),
+  authUser: document.getElementById("authUser"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  adminUsersCard: document.getElementById("adminUsersCard"),
+  usersRefresh: document.getElementById("usersRefresh"),
+  usersRows: document.getElementById("usersRows"),
   tabs: [...document.querySelectorAll(".tab")],
   panels: {
     exchange: document.getElementById("exchange"),
@@ -50,6 +68,7 @@ const els = {
 init();
 
 async function init() {
+  state.authToken = localStorage.getItem("crm_auth_token") || "";
   const now = new Date();
   const defaultFrom = toDateInput(addDays(now, -7));
   const defaultTo = toDateInput(now);
@@ -74,6 +93,13 @@ async function init() {
   setupAutosync();
 
   bindEvents();
+  updateAuthModeUI();
+  const authOk = await ensureAuthSession();
+  if (!authOk) {
+    showAuthGate();
+    return;
+  }
+
   updatePresetButtons();
   setupThemeWatcher();
 
@@ -81,6 +107,12 @@ async function init() {
 }
 
 function bindEvents() {
+  els.authModeLogin.addEventListener("click", () => setAuthMode("login"));
+  els.authModeRegister.addEventListener("click", () => setAuthMode("register"));
+  els.authSubmit.addEventListener("click", submitAuth);
+  els.logoutBtn.addEventListener("click", logout);
+  els.usersRefresh.addEventListener("click", loadUsersList);
+
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
   els.sync.addEventListener("click", syncNow);
 
@@ -191,6 +223,128 @@ function bindEvents() {
   });
 }
 
+function setAuthMode(mode) {
+  state.authMode = mode === "register" ? "register" : "login";
+  updateAuthModeUI();
+}
+
+function updateAuthModeUI() {
+  const isRegister = state.authMode === "register";
+  els.authModeLogin.classList.toggle("preset-active", !isRegister);
+  els.authModeRegister.classList.toggle("preset-active", isRegister);
+  els.authNameWrap.classList.toggle("hidden", !isRegister);
+  els.authSubmit.textContent = isRegister ? "Створити акаунт" : "Увійти";
+  els.authError.textContent = "";
+}
+
+async function submitAuth() {
+  els.authError.textContent = "";
+  const email = String(els.authEmail.value || "").trim();
+  const password = String(els.authPassword.value || "");
+  const fullName = String(els.authName.value || "").trim();
+
+  if (!email || !password) {
+    els.authError.textContent = "Вкажи email і пароль.";
+    return;
+  }
+
+  const path = state.authMode === "register" ? "/auth/register" : "/auth/login";
+  const body = state.authMode === "register" ? { email, password, fullName } : { email, password };
+
+  try {
+    const resp = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Помилка авторизації");
+    if (!data.token) throw new Error("Сервер не повернув токен.");
+
+    state.authToken = data.token;
+    state.user = data.user || null;
+    localStorage.setItem("crm_auth_token", state.authToken);
+    showApp();
+    await loadUsersList();
+    await loadFromDb();
+  } catch (error) {
+    els.authError.textContent = error?.message || "Помилка авторизації";
+  }
+}
+
+async function ensureAuthSession() {
+  if (!state.authToken) return false;
+  try {
+    const resp = await apiFetch("/auth/me", { method: "GET" }, true);
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    state.user = data.user || null;
+    showApp();
+    await loadUsersList();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function showAuthGate() {
+  els.appRoot.classList.add("hidden");
+  els.authGate.classList.remove("hidden");
+  els.authUser.textContent = "";
+  els.adminUsersCard.classList.add("hidden");
+  els.usersRows.innerHTML = `<tr><td colspan="6" class="muted">Немає даних</td></tr>`;
+  state.authToken = "";
+  state.user = null;
+  localStorage.removeItem("crm_auth_token");
+}
+
+function showApp() {
+  els.authGate.classList.add("hidden");
+  els.appRoot.classList.remove("hidden");
+  const role = state.user?.isAdmin ? "admin" : "user";
+  els.authUser.textContent = state.user?.email ? `Користувач: ${state.user.email} (${role})` : "";
+  els.adminUsersCard.classList.toggle("hidden", !state.user?.isAdmin);
+}
+
+function logout() {
+  showAuthGate();
+  state.agreements = [];
+  renderData();
+}
+
+async function loadUsersList() {
+  if (!state.user?.isAdmin) return;
+  try {
+    const resp = await apiFetch("/auth/users", { method: "GET" });
+    const data = await resp.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (!items.length) {
+      els.usersRows.innerHTML = `<tr><td colspan="6" class="muted">Користувачів ще немає.</td></tr>`;
+      return;
+    }
+    els.usersRows.innerHTML = items
+      .map((user) => {
+        const role = user.isAdmin ? "admin" : "user";
+        const status = user.isActive ? "active" : "disabled";
+        const created = formatDateTime(user.createdAt);
+        return `<tr>
+          <td>${Number(user.id) || "-"}</td>
+          <td>${escapeHtml(user.email)}</td>
+          <td>${escapeHtml(user.fullName || "-")}</td>
+          <td>${role}</td>
+          <td>${status}</td>
+          <td>${escapeHtml(created)}</td>
+        </tr>`;
+      })
+      .join("");
+  } catch (error) {
+    if (error?.message === "AUTH_REQUIRED") {
+      return;
+    }
+    els.usersRows.innerHTML = `<tr><td colspan="6" class="err">Не вдалося завантажити список користувачів.</td></tr>`;
+  }
+}
+
 function applyPresetDays(days) {
   const to = new Date();
   const from = addDays(to, -days);
@@ -244,7 +398,7 @@ async function loadFromDb() {
 }
 
 async function fetchDataOnly() {
-  const resp = await fetch(`${API_BASE}/api/data`, {
+  const resp = await apiFetch("/api/data", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -264,7 +418,7 @@ async function syncNow() {
   els.sync.disabled = true;
 
   try {
-    const resp = await fetch(`${API_BASE}/api/sync`, {
+    const resp = await apiFetch("/api/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -290,6 +444,11 @@ async function syncNow() {
     notifyDone(`Обмін завершено: ${data.meta.loaded} угод`);
   } catch (e) {
     const message = e?.message || "";
+    if (message === "AUTH_REQUIRED") {
+      setError("Сесію завершено. Увійди повторно.");
+      showAuthGate();
+      return;
+    }
     if (message === "Load failed" || message === "Failed to fetch") {
       setError("Немає відповіді від backend. Перевір Render URL/CORS і /health.");
     } else {
@@ -599,4 +758,30 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("uk-UA");
+}
+
+async function apiFetch(path, options = {}, raw = false) {
+  const headers = new Headers(options.headers || {});
+  if (state.authToken) {
+    headers.set("Authorization", `Bearer ${state.authToken}`);
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers
+  });
+
+  if (response.status === 401) {
+    if (!raw) showAuthGate();
+    throw new Error("AUTH_REQUIRED");
+  }
+
+  return response;
 }

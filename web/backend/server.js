@@ -4,6 +4,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import pg from "pg";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 const { Pool } = pg;
 
@@ -16,6 +18,9 @@ const backendVersion =
   process.env.RENDER_GIT_COMMIT?.slice(0, 7) ||
   process.env.GITHUB_SHA?.slice(0, 7) ||
   "dev";
+const authJwtSecret = process.env.AUTH_JWT_SECRET || "crmteamlid-dev-secret-change-me";
+const authJwtExpiresIn = process.env.AUTH_JWT_EXPIRES_IN || "7d";
+const authAdminEmail = String(process.env.AUTH_ADMIN_EMAIL || "").trim().toLowerCase();
 
 const pool = dbUrl
   ? new Pool({
@@ -40,8 +45,152 @@ app.get("/health", async (_req, res) => {
   res.json({ ok: true, service: "crmteamlid-backend", db, version: backendVersion });
 });
 
+app.post("/auth/register", async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(400).json({ error: "DATABASE_URL is not configured." });
+    }
+
+    const { email, password, fullName } = req.body ?? {};
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const safeFullName = String(fullName || "").trim().slice(0, 120);
+
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      return res.status(400).json({ error: "Вкажіть коректний email." });
+    }
+    if (!password || String(password).length < 6) {
+      return res.status(400).json({ error: "Пароль має містити мінімум 6 символів." });
+    }
+
+    const existing = await pool.query(`select id from app_users where email = $1 limit 1`, [normalizedEmail]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: "Користувач з таким email вже існує." });
+    }
+
+    const usersCountResult = await pool.query(`select count(*)::int as "count" from app_users`);
+    const usersCount = Number(usersCountResult.rows[0]?.count || 0);
+    const shouldBeAdmin = usersCount === 0 || (authAdminEmail && normalizedEmail === authAdminEmail);
+
+    const passwordHash = await bcrypt.hash(String(password), 12);
+    const inserted = await pool.query(
+      `
+        insert into app_users (email, password_hash, full_name, is_admin, is_active, created_at, updated_at)
+        values ($1, $2, $3, $4, true, now(), now())
+        returning id, email, full_name as "fullName", is_admin as "isAdmin", is_active as "isActive"
+      `,
+      [normalizedEmail, passwordHash, safeFullName || null, shouldBeAdmin]
+    );
+    const user = inserted.rows[0];
+    const token = signAuthToken(user);
+    return res.status(201).json({ token, user });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
+});
+
+app.post("/auth/login", async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(400).json({ error: "DATABASE_URL is not configured." });
+    }
+
+    const { email, password } = req.body ?? {};
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      return res.status(400).json({ error: "Email і пароль обов'язкові." });
+    }
+
+    const found = await pool.query(
+      `
+        select id, email, password_hash as "passwordHash", full_name as "fullName", is_admin as "isAdmin", is_active as "isActive"
+        from app_users
+        where email = $1
+        limit 1
+      `,
+      [normalizedEmail]
+    );
+    const user = found.rows[0];
+    if (!user || !user.isActive) {
+      return res.status(401).json({ error: "Невірний email або пароль." });
+    }
+
+    const isValid = await bcrypt.compare(String(password), user.passwordHash);
+    if (!isValid) {
+      return res.status(401).json({ error: "Невірний email або пароль." });
+    }
+
+    const token = signAuthToken(user);
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        isAdmin: Boolean(user.isAdmin),
+        isActive: user.isActive
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
+});
+
+app.get("/auth/me", async (req, res) => {
+  try {
+    const auth = requireAuth(req);
+    return res.json({
+      user: {
+        id: auth.userId,
+        email: auth.email,
+        fullName: auth.fullName,
+        isAdmin: Boolean(auth.isAdmin)
+      }
+    });
+  } catch (error) {
+    return res.status(401).json({ error: error?.message || "Unauthorized" });
+  }
+});
+
+app.get("/auth/users", async (req, res) => {
+  try {
+    const auth = requireAuth(req);
+    if (!auth.isAdmin) {
+      return res.status(403).json({ error: "Недостатньо прав доступу." });
+    }
+
+    if (!pool) {
+      return res.status(400).json({ error: "DATABASE_URL is not configured." });
+    }
+
+    const { rows } = await pool.query(
+      `
+        select
+          id,
+          email,
+          full_name as "fullName",
+          is_admin as "isAdmin",
+          is_active as "isActive",
+          created_at as "createdAt"
+        from app_users
+        order by created_at asc
+      `
+    );
+    return res.json({ items: rows });
+  } catch (error) {
+    if (isAuthError(error)) {
+      return res.status(401).json({ error: error?.message || "Unauthorized" });
+    }
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
+});
+
 app.post("/api/data", async (req, res) => {
   try {
+    requireAuth(req);
+
     if (!pool) {
       return res.status(400).json({ error: "DATABASE_URL is not configured." });
     }
@@ -68,6 +217,9 @@ app.post("/api/data", async (req, res) => {
       }
     });
   } catch (error) {
+    if (isAuthError(error)) {
+      return res.status(401).json({ error: error?.message || "Unauthorized" });
+    }
     console.error(error);
     return res.status(500).json({ error: error?.message || "Internal server error" });
   }
@@ -75,6 +227,8 @@ app.post("/api/data", async (req, res) => {
 
 app.get("/api/sync/logs", async (req, res) => {
   try {
+    requireAuth(req);
+
     if (!pool) {
       return res.status(400).json({ error: "DATABASE_URL is not configured." });
     }
@@ -84,6 +238,9 @@ app.get("/api/sync/logs", async (req, res) => {
     const logs = await getSyncLogs(limit);
     return res.json({ items: logs });
   } catch (error) {
+    if (isAuthError(error)) {
+      return res.status(401).json({ error: error?.message || "Unauthorized" });
+    }
     console.error(error);
     return res.status(500).json({ error: error?.message || "Internal server error" });
   }
@@ -95,6 +252,8 @@ app.post("/api/sync", async (req, res) => {
   let sourceLoadedCount = 0;
 
   try {
+    requireAuth(req);
+
     const { token: incomingToken, dateFrom, dateTo, managerIds } = req.body ?? {};
     const token = incomingToken || process.env.KEEPINCRM_TOKEN || "";
 
@@ -182,6 +341,9 @@ app.post("/api/sync", async (req, res) => {
       }
     });
   } catch (error) {
+    if (isAuthError(error)) {
+      return res.status(401).json({ error: error?.message || "Unauthorized" });
+    }
     const { dateFrom, dateTo, managerIds } = req.body ?? {};
     await insertSyncLog({
       startedAt,
@@ -629,6 +791,38 @@ function matchesOriginRule(origin, rule) {
   }
 
   return false;
+}
+
+function requireAuth(req) {
+  const authHeader = String(req.headers?.authorization || "");
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!token) {
+    throw new Error("Не авторизовано.");
+  }
+
+  try {
+    return jwt.verify(token, authJwtSecret);
+  } catch {
+    throw new Error("Сесія невалідна або протермінована.");
+  }
+}
+
+function isAuthError(error) {
+  const message = String(error?.message || "");
+  return message.includes("Не авторизовано") || message.includes("Сесія невалідна");
+}
+
+function signAuthToken(user) {
+  return jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName || null,
+      isAdmin: Boolean(user.isAdmin)
+    },
+    authJwtSecret,
+    { expiresIn: authJwtExpiresIn }
+  );
 }
 
 (async () => {
