@@ -209,11 +209,13 @@ async function fetchAllAgreements({ token, dateFrom, dateTo, updatedFrom }) {
   const all = [];
   let page = 1;
   let totalPages = 1;
+  const orderedFrom = keepinStartOfDay(dateFrom);
+  const orderedTo = keepinEndOfDay(dateTo);
 
   while (page <= totalPages) {
     const url = new URL(`${keepinBase}/agreements`);
-    url.searchParams.set("q[ordered_at_gteq]", dateFrom);
-    url.searchParams.set("q[ordered_at_lteq]", dateTo);
+    url.searchParams.set("q[ordered_at_gteq]", orderedFrom);
+    url.searchParams.set("q[ordered_at_lteq]", orderedTo);
     if (updatedFrom) {
       url.searchParams.set("q[updated_at_gteq]", updatedFrom);
     }
@@ -241,6 +243,20 @@ async function fetchAllAgreements({ token, dateFrom, dateTo, updatedFrom }) {
   }
 
   return all;
+}
+
+function keepinStartOfDay(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return value;
+  if (raw.includes("T")) return raw;
+  return `${raw}T00:00:00`;
+}
+
+function keepinEndOfDay(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return value;
+  if (raw.includes("T")) return raw;
+  return `${raw}T23:59:59`;
 }
 
 function normalizeAgreement(item) {
