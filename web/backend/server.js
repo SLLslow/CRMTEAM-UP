@@ -69,7 +69,7 @@ app.post("/auth/register", async (req, res) => {
 
     const usersCountResult = await pool.query(`select count(*)::int as "count" from app_users`);
     const usersCount = Number(usersCountResult.rows[0]?.count || 0);
-    const shouldBeAdmin = usersCount === 0 || (authAdminEmail && normalizedEmail === authAdminEmail);
+    const shouldBeAdmin = usersCount === 0 || (!!authAdminEmail && normalizedEmail === authAdminEmail);
 
     const passwordHash = await bcrypt.hash(String(password), 12);
     const inserted = await pool.query(
