@@ -12,6 +12,10 @@ const port = process.env.PORT || 8080;
 const keepinBase = process.env.KEEPINCRM_BASE_URL || "https://api.keepincrm.com/v1";
 const allowedOrigin = process.env.CORS_ORIGIN || "*";
 const dbUrl = process.env.DATABASE_URL || "";
+const backendVersion =
+  process.env.RENDER_GIT_COMMIT?.slice(0, 7) ||
+  process.env.GITHUB_SHA?.slice(0, 7) ||
+  "dev";
 
 const pool = dbUrl
   ? new Pool({
@@ -33,7 +37,7 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", async (_req, res) => {
   const db = await isDbReady();
-  res.json({ ok: true, service: "crmteamlid-backend", db });
+  res.json({ ok: true, service: "crmteamlid-backend", db, version: backendVersion });
 });
 
 app.post("/api/data", async (req, res) => {
