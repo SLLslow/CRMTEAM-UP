@@ -113,6 +113,18 @@
         color: var(--text);
         resize: vertical;
       }
+      .plan-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 12px;
+      }
+      .plan-metrics label {
+        margin: 0;
+      }
+      .plan-section-title {
+        margin: 8px 0 4px;
+        font-weight: 700;
+      }
       input[type="range"] {
         width: 100%;
       }
@@ -212,6 +224,7 @@
       @media (max-width: 900px) {
         .wrap { padding: 14px; }
         .g2, .g4 { grid-template-columns: 1fr; }
+        .plan-metrics { grid-template-columns: 1fr; }
         .stages-grid { grid-template-columns: 1fr; }
         .row { flex-wrap: wrap; }
         .card { padding: 14px; border-radius: 14px; }
@@ -348,12 +361,72 @@
           <h3 id="planTitle" style="margin-top:0;">Щотижневий звіт Team Lead</h3>
 
           <div class="grid">
-            <label>1. Виконання кількісних показників (команда)
-              <textarea id="planMetricsTeam" placeholder="Сума, план/факт, угоди, відмови, реквізити, дзвінки, ліди, реактивація, конверсія..."></textarea>
-            </label>
-            <label>1. Виконання кількісних показників (особисті)
-              <textarea id="planMetricsPersonal" placeholder="Особисті KPI за період..."></textarea>
-            </label>
+            <div>
+              <div class="plan-section-title">1. Виконання кількісних показників (команда)</div>
+              <div class="plan-metrics">
+                <label>Сума (факт оплати), UAH
+                  <input id="planTeamSumFact" type="text" placeholder="0" />
+                </label>
+                <label>Виконання план/факт, %
+                  <input id="planTeamPlanFact" type="text" placeholder="0" />
+                </label>
+                <label>Кількість успішних замовлень, шт
+                  <input id="planTeamSuccessfulOrders" type="text" placeholder="0" />
+                </label>
+                <label>Кількість відмов, шт
+                  <input id="planTeamRefusals" type="text" placeholder="0" />
+                </label>
+                <label>Відправлені реквізити/пропозиції, шт
+                  <input id="planTeamSentProps" type="text" placeholder="0" />
+                </label>
+                <label>Телефонні розмови, шт
+                  <input id="planTeamPhoneCalls" type="text" placeholder="0" />
+                </label>
+                <label>Нові ліди взяті в роботу, шт
+                  <input id="planTeamNewLeads" type="text" placeholder="0" />
+                </label>
+                <label>Клієнти з бази (реактивація), шт
+                  <input id="planTeamReactivation" type="text" placeholder="0" />
+                </label>
+                <label>Конверсія з ліда в оплату, %
+                  <input id="planTeamConversion" type="text" placeholder="0" />
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <div class="plan-section-title">1. Виконання кількісних показників (особисті)</div>
+              <div class="plan-metrics">
+                <label>Сума (факт оплати), UAH
+                  <input id="planPersonalSumFact" type="text" placeholder="0" />
+                </label>
+                <label>Виконання план/факт, %
+                  <input id="planPersonalPlanFact" type="text" placeholder="0" />
+                </label>
+                <label>Кількість успішних замовлень, шт
+                  <input id="planPersonalSuccessfulOrders" type="text" placeholder="0" />
+                </label>
+                <label>Кількість відмов, шт
+                  <input id="planPersonalRefusals" type="text" placeholder="0" />
+                </label>
+                <label>Відправлені реквізити/пропозиції, шт
+                  <input id="planPersonalSentProps" type="text" placeholder="0" />
+                </label>
+                <label>Телефонні розмови, шт
+                  <input id="planPersonalPhoneCalls" type="text" placeholder="0" />
+                </label>
+                <label>Нові ліди взяті в роботу, шт
+                  <input id="planPersonalNewLeads" type="text" placeholder="0" />
+                </label>
+                <label>Клієнти з бази (реактивація), шт
+                  <input id="planPersonalReactivation" type="text" placeholder="0" />
+                </label>
+                <label>Конверсія з ліда в оплату, %
+                  <input id="planPersonalConversion" type="text" placeholder="0" />
+                </label>
+              </div>
+            </div>
+
             <label>2. Найважча ситуація
               <textarea id="planHardSituation"></textarea>
             </label>

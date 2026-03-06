@@ -36,8 +36,24 @@ const els = {
   planSave: document.getElementById("planSave"),
   planTitle: document.getElementById("planTitle"),
   planStatus: document.getElementById("planStatus"),
-  planMetricsTeam: document.getElementById("planMetricsTeam"),
-  planMetricsPersonal: document.getElementById("planMetricsPersonal"),
+  planTeamSumFact: document.getElementById("planTeamSumFact"),
+  planTeamPlanFact: document.getElementById("planTeamPlanFact"),
+  planTeamSuccessfulOrders: document.getElementById("planTeamSuccessfulOrders"),
+  planTeamRefusals: document.getElementById("planTeamRefusals"),
+  planTeamSentProps: document.getElementById("planTeamSentProps"),
+  planTeamPhoneCalls: document.getElementById("planTeamPhoneCalls"),
+  planTeamNewLeads: document.getElementById("planTeamNewLeads"),
+  planTeamReactivation: document.getElementById("planTeamReactivation"),
+  planTeamConversion: document.getElementById("planTeamConversion"),
+  planPersonalSumFact: document.getElementById("planPersonalSumFact"),
+  planPersonalPlanFact: document.getElementById("planPersonalPlanFact"),
+  planPersonalSuccessfulOrders: document.getElementById("planPersonalSuccessfulOrders"),
+  planPersonalRefusals: document.getElementById("planPersonalRefusals"),
+  planPersonalSentProps: document.getElementById("planPersonalSentProps"),
+  planPersonalPhoneCalls: document.getElementById("planPersonalPhoneCalls"),
+  planPersonalNewLeads: document.getElementById("planPersonalNewLeads"),
+  planPersonalReactivation: document.getElementById("planPersonalReactivation"),
+  planPersonalConversion: document.getElementById("planPersonalConversion"),
   planHardSituation: document.getElementById("planHardSituation"),
   planSolvedHow: document.getElementById("planSolvedHow"),
   planHeroAction: document.getElementById("planHeroAction"),
@@ -416,8 +432,15 @@ async function savePlan() {
 }
 
 function applyPlanPayload(payload) {
-  els.planMetricsTeam.value = String(payload.metricsTeam || "");
-  els.planMetricsPersonal.value = String(payload.metricsPersonal || "");
+  const autoTeam = buildAutoPlanMetrics();
+  const storedTeam = payload?.metricsTeam && typeof payload.metricsTeam === "object" ? payload.metricsTeam : {};
+  const storedPersonal = payload?.metricsPersonal && typeof payload.metricsPersonal === "object" ? payload.metricsPersonal : {};
+  const team = { ...autoTeam, ...storedTeam };
+  const personal = { ...blankMetrics(), ...storedPersonal };
+
+  fillMetricsInputs("team", team);
+  fillMetricsInputs("personal", personal);
+
   els.planHardSituation.value = String(payload.hardSituation || "");
   els.planSolvedHow.value = String(payload.solvedHow || "");
   els.planHeroAction.value = String(payload.heroAction || "");
@@ -428,8 +451,8 @@ function applyPlanPayload(payload) {
 
 function readPlanPayload() {
   return {
-    metricsTeam: els.planMetricsTeam.value.trim(),
-    metricsPersonal: els.planMetricsPersonal.value.trim(),
+    metricsTeam: readMetricsInputs("team"),
+    metricsPersonal: readMetricsInputs("personal"),
     hardSituation: els.planHardSituation.value.trim(),
     solvedHow: els.planSolvedHow.value.trim(),
     heroAction: els.planHeroAction.value.trim(),
@@ -440,8 +463,164 @@ function readPlanPayload() {
 }
 
 function clearPlanForm() {
-  applyPlanPayload({});
+  fillMetricsInputs("team", blankMetrics());
+  fillMetricsInputs("personal", blankMetrics());
+  els.planHardSituation.value = "";
+  els.planSolvedHow.value = "";
+  els.planHeroAction.value = "";
+  els.planConclusions.value = "";
+  els.planNextTasks.value = "";
+  els.planNextPlan.value = "";
   els.planStatus.textContent = "План не завантажено";
+}
+
+function blankMetrics() {
+  return {
+    sumFact: "",
+    planFactPercent: "",
+    successfulOrders: "",
+    refusals: "",
+    sentProps: "",
+    phoneCalls: "",
+    newLeads: "",
+    reactivation: "",
+    conversionPercent: ""
+  };
+}
+
+function fillMetricsInputs(kind, values) {
+  const map = kind === "team"
+    ? {
+        sumFact: els.planTeamSumFact,
+        planFactPercent: els.planTeamPlanFact,
+        successfulOrders: els.planTeamSuccessfulOrders,
+        refusals: els.planTeamRefusals,
+        sentProps: els.planTeamSentProps,
+        phoneCalls: els.planTeamPhoneCalls,
+        newLeads: els.planTeamNewLeads,
+        reactivation: els.planTeamReactivation,
+        conversionPercent: els.planTeamConversion
+      }
+    : {
+        sumFact: els.planPersonalSumFact,
+        planFactPercent: els.planPersonalPlanFact,
+        successfulOrders: els.planPersonalSuccessfulOrders,
+        refusals: els.planPersonalRefusals,
+        sentProps: els.planPersonalSentProps,
+        phoneCalls: els.planPersonalPhoneCalls,
+        newLeads: els.planPersonalNewLeads,
+        reactivation: els.planPersonalReactivation,
+        conversionPercent: els.planPersonalConversion
+      };
+
+  Object.entries(map).forEach(([key, input]) => {
+    input.value = values?.[key] != null ? String(values[key]) : "";
+  });
+}
+
+function readMetricsInputs(kind) {
+  const map = kind === "team"
+    ? {
+        sumFact: els.planTeamSumFact,
+        planFactPercent: els.planTeamPlanFact,
+        successfulOrders: els.planTeamSuccessfulOrders,
+        refusals: els.planTeamRefusals,
+        sentProps: els.planTeamSentProps,
+        phoneCalls: els.planTeamPhoneCalls,
+        newLeads: els.planTeamNewLeads,
+        reactivation: els.planTeamReactivation,
+        conversionPercent: els.planTeamConversion
+      }
+    : {
+        sumFact: els.planPersonalSumFact,
+        planFactPercent: els.planPersonalPlanFact,
+        successfulOrders: els.planPersonalSuccessfulOrders,
+        refusals: els.planPersonalRefusals,
+        sentProps: els.planPersonalSentProps,
+        phoneCalls: els.planPersonalPhoneCalls,
+        newLeads: els.planPersonalNewLeads,
+        reactivation: els.planPersonalReactivation,
+        conversionPercent: els.planPersonalConversion
+      };
+
+  const out = {};
+  Object.entries(map).forEach(([key, input]) => {
+    out[key] = String(input.value || "").trim();
+  });
+  return out;
+}
+
+function buildAutoPlanMetrics() {
+  const agreements = getPlanPeriodAgreements();
+  const total = agreements.length;
+  const successful = agreements.filter((a) => a.result === "successful");
+  const failed = agreements.filter((a) => a.result === "failed");
+  const successfulRevenue = successful.reduce((acc, a) => acc + (Number(a.total) || 0), 0);
+  const conversion = total > 0 ? (successful.length / total) * 100 : 0;
+  const sentProps = agreements.filter((a) => {
+    const stage = String(a.stageName || "").toLowerCase();
+    return stage.includes("рахунок") || stage.includes("реквізит") || stage.includes("пропозиц");
+  }).length;
+  const newLeads = agreements.filter((a) => {
+    const source = String(a.sourceName || "").toLowerCase();
+    return source.includes("лід");
+  }).length;
+  const reactivation = agreements.filter((a) => {
+    const source = String(a.sourceName || "").toLowerCase();
+    return source.includes("реактивац");
+  }).length;
+
+  return {
+    sumFact: successfulRevenue ? successfulRevenue.toFixed(2) : "0",
+    planFactPercent: "",
+    successfulOrders: String(successful.length),
+    refusals: String(failed.length),
+    sentProps: String(sentProps),
+    phoneCalls: "",
+    newLeads: String(newLeads),
+    reactivation: String(reactivation),
+    conversionPercent: conversion ? conversion.toFixed(2) : "0"
+  };
+}
+
+function getPlanPeriodAgreements() {
+  const { periodType } = currentPlanPeriod();
+  const items = Array.isArray(state.agreements) ? state.agreements : [];
+  const range = getPlanDateRange(periodType);
+  if (!range) return items;
+
+  return items.filter((agreement) => {
+    const dateStr = agreement.createdAt || agreement.orderedAt || agreement.updatedAt;
+    if (!dateStr) return false;
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return false;
+    return date >= range.from && date <= range.to;
+  });
+}
+
+function getPlanDateRange(periodType) {
+  if (periodType === "month") {
+    const monthValue = String(els.planMonthDate.value || "");
+    if (!monthValue.includes("-")) return null;
+    const [yearStr, monthStr] = monthValue.split("-");
+    const year = Number(yearStr);
+    const monthIndex = Number(monthStr) - 1;
+    if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
+    const from = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+    const to = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+    return { from, to };
+  }
+
+  const baseDate = new Date(`${els.planWeekDate.value}T00:00:00`);
+  if (Number.isNaN(baseDate.getTime())) return null;
+  const day = (baseDate.getDay() + 6) % 7;
+  const from = new Date(baseDate);
+  from.setDate(baseDate.getDate() - day);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setDate(from.getDate() + 6);
+  to.setHours(23, 59, 59, 999);
+  return { from, to };
 }
 
 async function loadUsersList() {
