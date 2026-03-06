@@ -125,31 +125,21 @@ app.post("/api/sync", async (req, res) => {
 
     const normalizedManagerIds = normalizeManagerIds(managerIds);
 
-    const lastSyncAt = await getLastSyncAt();
-    let fetchedRaw = await fetchAllAgreements({
+    // Always load the full requested date range from CRM for correctness.
+    // Incremental mode may skip records when CRM updated_at checkpoints drift.
+    const fetchedRaw = await fetchAllAgreements({
       token,
       dateFrom,
       dateTo,
-      updatedFrom: lastSyncAt
+      updatedFrom: null
     });
-
-    // Fallback: if incremental sync returned nothing, run full range sync.
-    // This prevents "stuck at 0" after an empty incremental checkpoint.
-    if (fetchedRaw.length === 0 && lastSyncAt) {
-      fetchedRaw = await fetchAllAgreements({
-        token,
-        dateFrom,
-        dateTo,
-        updatedFrom: null
-      });
-    }
 
     const fetched = deduplicateAgreements(fetchedRaw);
 
     if (pool && fetched.length > 0) {
       await upsertAgreements(fetched);
     }
-    const nextCheckpoint = nextSyncCheckpoint(lastSyncAt, fetched);
+    const nextCheckpoint = nextSyncCheckpoint(null, fetched);
     if (nextCheckpoint) {
       await setLastSyncAt(nextCheckpoint);
     }
