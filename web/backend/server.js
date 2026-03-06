@@ -126,18 +126,33 @@ app.post("/api/sync", async (req, res) => {
     const normalizedManagerIds = normalizeManagerIds(managerIds);
 
     const lastSyncAt = await getLastSyncAt();
-    const fetchedRaw = await fetchAllAgreements({
+    let fetchedRaw = await fetchAllAgreements({
       token,
       dateFrom,
       dateTo,
       updatedFrom: lastSyncAt
     });
+
+    // Fallback: if incremental sync returned nothing, run full range sync.
+    // This prevents "stuck at 0" after an empty incremental checkpoint.
+    if (fetchedRaw.length === 0 && lastSyncAt) {
+      fetchedRaw = await fetchAllAgreements({
+        token,
+        dateFrom,
+        dateTo,
+        updatedFrom: null
+      });
+    }
+
     const fetched = deduplicateAgreements(fetchedRaw);
 
     if (pool && fetched.length > 0) {
       await upsertAgreements(fetched);
     }
-    await setLastSyncAt(nextSyncCheckpoint(lastSyncAt, fetched));
+    const nextCheckpoint = nextSyncCheckpoint(lastSyncAt, fetched);
+    if (nextCheckpoint) {
+      await setLastSyncAt(nextCheckpoint);
+    }
 
     const agreements = pool
       ? await queryAgreements({ dateFrom, dateTo, managerIds: normalizedManagerIds })
@@ -325,7 +340,7 @@ function nextSyncCheckpoint(lastSyncAt, agreements) {
   }
 
   if (lastSyncAt) return lastSyncAt;
-  return new Date().toISOString();
+  return null;
 }
 
 function normalizeManagerIds(managerIds) {
