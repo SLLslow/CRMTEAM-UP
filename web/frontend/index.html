@@ -103,6 +103,16 @@
         background: rgba(255, 255, 255, 0.7);
         color: var(--text);
       }
+      textarea {
+        width: 100%;
+        min-height: 72px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--text);
+        resize: vertical;
+      }
       input[type="range"] {
         width: 100%;
       }
@@ -112,7 +122,8 @@
       }
       [data-theme="dark"] input,
       [data-theme="dark"] select,
-      [data-theme="dark"] button {
+      [data-theme="dark"] button,
+      [data-theme="dark"] textarea {
         background: rgba(22, 29, 39, 0.75);
       }
       button.primary {
@@ -244,6 +255,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="exchange">Обмін</button>
         <button class="tab" data-tab="data">Дані</button>
+        <button class="tab" data-tab="plan">План</button>
         <button class="tab" data-tab="settings">Налаштування</button>
       </div>
 
@@ -307,6 +319,62 @@
           </div>
         </div>
         <div class="card" id="managerDeals"></div>
+      </section>
+
+      <section id="plan" class="panel hidden">
+        <div class="card grid g2">
+          <label>
+            Тип плану
+            <select id="planPeriodType">
+              <option value="week">Тиждень</option>
+              <option value="month">Місяць</option>
+            </select>
+          </label>
+          <label id="planWeekWrap">
+            Тиждень (дата всередині періоду)
+            <input id="planWeekDate" type="date" />
+          </label>
+          <label id="planMonthWrap" class="hidden">
+            Місяць
+            <input id="planMonthDate" type="month" />
+          </label>
+          <div class="row" style="align-self:end;">
+            <button id="planLoad" type="button" class="secondary">Завантажити</button>
+            <button id="planSave" type="button" class="primary">Зберегти план</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 id="planTitle" style="margin-top:0;">Щотижневий звіт Team Lead</h3>
+
+          <div class="grid">
+            <label>1. Виконання кількісних показників (команда)
+              <textarea id="planMetricsTeam" placeholder="Сума, план/факт, угоди, відмови, реквізити, дзвінки, ліди, реактивація, конверсія..."></textarea>
+            </label>
+            <label>1. Виконання кількісних показників (особисті)
+              <textarea id="planMetricsPersonal" placeholder="Особисті KPI за період..."></textarea>
+            </label>
+            <label>2. Найважча ситуація
+              <textarea id="planHardSituation"></textarea>
+            </label>
+            <label>3. Як я вирішив її
+              <textarea id="planSolvedHow"></textarea>
+            </label>
+            <label>4. Успішна дія / героїчний вчинок
+              <textarea id="planHeroAction"></textarea>
+            </label>
+            <label>5. Висновки за період
+              <textarea id="planConclusions"></textarea>
+            </label>
+            <label>6. Задачі на наступний період
+              <textarea id="planNextTasks"></textarea>
+            </label>
+            <label>7. План команди та особистий на наступний період
+              <textarea id="planNextPlan"></textarea>
+            </label>
+          </div>
+          <div id="planStatus" class="muted" style="margin-top:10px;">План не завантажено</div>
+        </div>
       </section>
 
       <section id="settings" class="panel hidden">

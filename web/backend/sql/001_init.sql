@@ -58,3 +58,28 @@ create index if not exists idx_app_users_email on app_users (email);
 
 alter table app_users
   add column if not exists is_admin boolean not null default false;
+
+create table if not exists team_plans (
+  id bigserial primary key,
+  user_id bigint not null references app_users(id) on delete cascade,
+  period_type text not null check (period_type in ('week', 'month')),
+  period_key text not null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table team_plans
+  add column if not exists payload jsonb not null default '{}'::jsonb;
+
+alter table team_plans
+  drop column if exists title;
+alter table team_plans
+  drop column if exists notes;
+alter table team_plans
+  drop column if exists position;
+alter table team_plans
+  drop column if exists is_done;
+
+create index if not exists idx_team_plans_user_period on team_plans (user_id, period_type, period_key);
+create unique index if not exists uq_team_plans_user_period on team_plans (user_id, period_type, period_key);

@@ -27,10 +27,28 @@ const els = {
   adminUsersCard: document.getElementById("adminUsersCard"),
   usersRefresh: document.getElementById("usersRefresh"),
   usersRows: document.getElementById("usersRows"),
+  planPeriodType: document.getElementById("planPeriodType"),
+  planWeekWrap: document.getElementById("planWeekWrap"),
+  planMonthWrap: document.getElementById("planMonthWrap"),
+  planWeekDate: document.getElementById("planWeekDate"),
+  planMonthDate: document.getElementById("planMonthDate"),
+  planLoad: document.getElementById("planLoad"),
+  planSave: document.getElementById("planSave"),
+  planTitle: document.getElementById("planTitle"),
+  planStatus: document.getElementById("planStatus"),
+  planMetricsTeam: document.getElementById("planMetricsTeam"),
+  planMetricsPersonal: document.getElementById("planMetricsPersonal"),
+  planHardSituation: document.getElementById("planHardSituation"),
+  planSolvedHow: document.getElementById("planSolvedHow"),
+  planHeroAction: document.getElementById("planHeroAction"),
+  planConclusions: document.getElementById("planConclusions"),
+  planNextTasks: document.getElementById("planNextTasks"),
+  planNextPlan: document.getElementById("planNextPlan"),
   tabs: [...document.querySelectorAll(".tab")],
   panels: {
     exchange: document.getElementById("exchange"),
     data: document.getElementById("data"),
+    plan: document.getElementById("plan"),
     settings: document.getElementById("settings")
   },
   token: document.getElementById("token"),
@@ -72,11 +90,15 @@ async function init() {
   const now = new Date();
   const defaultFrom = toDateInput(addDays(now, -7));
   const defaultTo = toDateInput(now);
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   els.from.value = localStorage.getItem("crm_from") || defaultFrom;
   els.to.value = localStorage.getItem("crm_to") || defaultTo;
   els.dataFrom.value = localStorage.getItem("crm_data_from") || els.from.value;
   els.dataTo.value = localStorage.getItem("crm_data_to") || els.to.value;
+  els.planWeekDate.value = localStorage.getItem("crm_plan_week_date") || defaultTo;
+  els.planMonthDate.value = localStorage.getItem("crm_plan_month_date") || defaultMonth;
+  els.planPeriodType.value = localStorage.getItem("crm_plan_period_type") || "week";
   els.token.value = "****************";
 
   els.theme.value = localStorage.getItem("crm_theme") || "system";
@@ -93,6 +115,8 @@ async function init() {
   setupAutosync();
 
   bindEvents();
+  togglePlanPeriodInputs();
+  updatePlanTitle();
   updateAuthModeUI();
   const authOk = await ensureAuthSession();
   if (!authOk) {
@@ -112,6 +136,19 @@ function bindEvents() {
   els.authSubmit.addEventListener("click", submitAuth);
   els.logoutBtn.addEventListener("click", logout);
   els.usersRefresh.addEventListener("click", loadUsersList);
+  els.planPeriodType.addEventListener("change", () => {
+    localStorage.setItem("crm_plan_period_type", els.planPeriodType.value);
+    togglePlanPeriodInputs();
+    updatePlanTitle();
+  });
+  els.planWeekDate.addEventListener("change", () => {
+    localStorage.setItem("crm_plan_week_date", els.planWeekDate.value);
+  });
+  els.planMonthDate.addEventListener("change", () => {
+    localStorage.setItem("crm_plan_month_date", els.planMonthDate.value);
+  });
+  els.planLoad.addEventListener("click", () => loadPlan());
+  els.planSave.addEventListener("click", () => savePlan());
 
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
   els.sync.addEventListener("click", syncNow);
@@ -310,6 +347,101 @@ function logout() {
   showAuthGate();
   state.agreements = [];
   renderData();
+  clearPlanForm();
+}
+
+function togglePlanPeriodInputs() {
+  const isWeek = els.planPeriodType.value === "week";
+  els.planWeekWrap.classList.toggle("hidden", !isWeek);
+  els.planMonthWrap.classList.toggle("hidden", isWeek);
+}
+
+function updatePlanTitle() {
+  els.planTitle.textContent = els.planPeriodType.value === "week"
+    ? "Щотижневий звіт Team Lead"
+    : "Щомісячний звіт Team Lead";
+}
+
+function currentPlanPeriod() {
+  const periodType = els.planPeriodType.value === "month" ? "month" : "week";
+  const periodKey = periodType === "week"
+    ? isoWeekKey(els.planWeekDate.value)
+    : String(els.planMonthDate.value || "");
+  return { periodType, periodKey };
+}
+
+async function loadPlan() {
+  const { periodType, periodKey } = currentPlanPeriod();
+  if (!periodKey) {
+    els.planStatus.textContent = "Вкажи період плану.";
+    return;
+  }
+
+  try {
+    const query = new URLSearchParams({ periodType, periodKey }).toString();
+    const resp = await apiFetch(`/api/plans?${query}`, { method: "GET" });
+    const data = await resp.json();
+    const payload = data?.item?.payload || {};
+    applyPlanPayload(payload);
+    els.planStatus.textContent = data?.item
+      ? `План завантажено (${periodType}: ${periodKey})`
+      : `План ще не створено (${periodType}: ${periodKey})`;
+  } catch (error) {
+    if (error?.message === "AUTH_REQUIRED") return;
+    els.planStatus.textContent = "Не вдалося завантажити план.";
+  }
+}
+
+async function savePlan() {
+  const { periodType, periodKey } = currentPlanPeriod();
+  if (!periodKey) {
+    els.planStatus.textContent = "Вкажи період плану.";
+    return;
+  }
+
+  const payload = readPlanPayload();
+  try {
+    const resp = await apiFetch("/api/plans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ periodType, periodKey, payload })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || "Не вдалося зберегти план.");
+    els.planStatus.textContent = `План збережено (${periodType}: ${periodKey})`;
+  } catch (error) {
+    if (error?.message === "AUTH_REQUIRED") return;
+    els.planStatus.textContent = error?.message || "Не вдалося зберегти план.";
+  }
+}
+
+function applyPlanPayload(payload) {
+  els.planMetricsTeam.value = String(payload.metricsTeam || "");
+  els.planMetricsPersonal.value = String(payload.metricsPersonal || "");
+  els.planHardSituation.value = String(payload.hardSituation || "");
+  els.planSolvedHow.value = String(payload.solvedHow || "");
+  els.planHeroAction.value = String(payload.heroAction || "");
+  els.planConclusions.value = String(payload.conclusions || "");
+  els.planNextTasks.value = String(payload.nextTasks || "");
+  els.planNextPlan.value = String(payload.nextPlan || "");
+}
+
+function readPlanPayload() {
+  return {
+    metricsTeam: els.planMetricsTeam.value.trim(),
+    metricsPersonal: els.planMetricsPersonal.value.trim(),
+    hardSituation: els.planHardSituation.value.trim(),
+    solvedHow: els.planSolvedHow.value.trim(),
+    heroAction: els.planHeroAction.value.trim(),
+    conclusions: els.planConclusions.value.trim(),
+    nextTasks: els.planNextTasks.value.trim(),
+    nextPlan: els.planNextPlan.value.trim()
+  };
+}
+
+function clearPlanForm() {
+  applyPlanPayload({});
+  els.planStatus.textContent = "План не завантажено";
 }
 
 async function loadUsersList() {
@@ -376,6 +508,9 @@ function switchTab(tab) {
   Object.entries(els.panels).forEach(([key, node]) => {
     node.classList.toggle("hidden", key !== tab);
   });
+  if (tab === "plan") {
+    loadPlan();
+  }
 }
 
 function selectedManagerIds() {
@@ -765,6 +900,21 @@ function formatDateTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString("uk-UA");
+}
+
+function isoWeekKey(dateInputValue) {
+  if (!dateInputValue) return "";
+  const date = new Date(`${dateInputValue}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const dayNum = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - dayNum + 3);
+  const isoYear = date.getFullYear();
+  const firstThursday = new Date(isoYear, 0, 4);
+  const firstDayNum = (firstThursday.getDay() + 6) % 7;
+  firstThursday.setDate(firstThursday.getDate() - firstDayNum + 3);
+  const weekNo = 1 + Math.round((date.getTime() - firstThursday.getTime()) / 604800000);
+  return `${isoYear}-W${String(weekNo).padStart(2, "0")}`;
 }
 
 async function apiFetch(path, options = {}, raw = false) {

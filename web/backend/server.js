@@ -187,6 +187,90 @@ app.get("/auth/users", async (req, res) => {
   }
 });
 
+app.get("/api/plans", async (req, res) => {
+  try {
+    const auth = requireAuth(req);
+    if (!pool) {
+      return res.status(400).json({ error: "DATABASE_URL is not configured." });
+    }
+
+    const periodType = normalizePeriodType(req.query.periodType);
+    const periodKey = String(req.query.periodKey || "").trim();
+    if (!periodType || !periodKey) {
+      return res.status(400).json({ error: "periodType and periodKey are required." });
+    }
+
+    const { rows } = await pool.query(
+      `
+        select
+          id,
+          period_type as "periodType",
+          period_key as "periodKey",
+          payload,
+          updated_at as "updatedAt"
+        from team_plans
+        where user_id = $1 and period_type = $2 and period_key = $3
+        limit 1
+      `,
+      [auth.userId, periodType, periodKey]
+    );
+
+    return res.json({ item: rows[0] || null });
+  } catch (error) {
+    if (isAuthError(error)) {
+      return res.status(401).json({ error: error?.message || "Unauthorized" });
+    }
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
+});
+
+app.post("/api/plans", async (req, res) => {
+  try {
+    const auth = requireAuth(req);
+    if (!pool) {
+      return res.status(400).json({ error: "DATABASE_URL is not configured." });
+    }
+
+    const periodType = normalizePeriodType(req.body?.periodType);
+    const periodKey = String(req.body?.periodKey || "").trim();
+    const payload = req.body?.payload;
+
+    if (!periodType || !periodKey) {
+      return res.status(400).json({ error: "periodType and periodKey are required." });
+    }
+    if (!payload || typeof payload !== "object") {
+      return res.status(400).json({ error: "payload is required." });
+    }
+
+    const { rows } = await pool.query(
+      `
+        insert into team_plans (user_id, period_type, period_key, payload, updated_at)
+        values ($1, $2, $3, $4::jsonb, now())
+        on conflict (user_id, period_type, period_key)
+        do update set
+          payload = excluded.payload,
+          updated_at = now()
+        returning
+          id,
+          period_type as "periodType",
+          period_key as "periodKey",
+          payload,
+          updated_at as "updatedAt"
+      `,
+      [auth.userId, periodType, periodKey, JSON.stringify(payload)]
+    );
+
+    return res.json({ item: rows[0] });
+  } catch (error) {
+    if (isAuthError(error)) {
+      return res.status(401).json({ error: error?.message || "Unauthorized" });
+    }
+    console.error(error);
+    return res.status(500).json({ error: error?.message || "Internal server error" });
+  }
+});
+
 app.post("/api/data", async (req, res) => {
   try {
     requireAuth(req);
@@ -728,6 +812,12 @@ function normalizeManagerIdsForLog(managerIds) {
     .filter((v) => Number.isFinite(v))
     .map((v) => String(v));
   return ids.join(",");
+}
+
+function normalizePeriodType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "week" || normalized === "month") return normalized;
+  return null;
 }
 
 async function getSyncLogs(limit) {
