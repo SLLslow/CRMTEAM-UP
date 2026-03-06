@@ -173,7 +173,7 @@ app.post("/api/sync", async (req, res) => {
         loaded: agreements.length,
         sourceLoaded: fetched.length,
         range: { from: dateFrom, to: dateTo },
-        incrementalFrom: lastSyncAt || null,
+        incrementalFrom: null,
         fromDb: !!pool
       }
     });
