@@ -209,13 +209,13 @@ async function fetchAllAgreements({ token, dateFrom, dateTo, updatedFrom }) {
   const all = [];
   let page = 1;
   let totalPages = 1;
-  const orderedFrom = keepinStartOfDay(dateFrom);
-  const orderedTo = keepinEndOfDay(dateTo);
+  const createdFrom = keepinStartOfDay(dateFrom);
+  const createdTo = keepinEndOfDay(dateTo);
 
   while (page <= totalPages) {
     const url = new URL(`${keepinBase}/agreements`);
-    url.searchParams.set("q[ordered_at_gteq]", orderedFrom);
-    url.searchParams.set("q[ordered_at_lteq]", orderedTo);
+    url.searchParams.set("q[created_at_gteq]", createdFrom);
+    url.searchParams.set("q[created_at_lteq]", createdTo);
     if (updatedFrom) {
       url.searchParams.set("q[updated_at_gteq]", updatedFrom);
     }
@@ -371,7 +371,7 @@ async function queryAgreements({ dateFrom, dateTo, managerIds }) {
 
   const managerArray = [...managerIds];
   const values = [dateFrom, dateTo];
-  let where = `ordered_at::date >= $1::date and ordered_at::date <= $2::date`;
+  let where = `coalesce(created_at, ordered_at)::date >= $1::date and coalesce(created_at, ordered_at)::date <= $2::date`;
 
   if (managerArray.length > 0) {
     values.push(managerArray);
