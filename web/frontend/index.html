@@ -359,97 +359,88 @@
 
         <div class="card">
           <h3 id="planTitle" style="margin-top:0;">Щотижневий звіт Team Lead</h3>
+          <div class="plan-metrics">
+            <label>План на тиждень, UAH
+              <input id="planGlobalWeek" type="text" placeholder="0" />
+            </label>
+            <label>План на місяць, UAH
+              <input id="planGlobalMonth" type="text" placeholder="0" />
+            </label>
+            <label>Сума план, UAH
+              <input id="planMetricSumPlan" type="text" placeholder="0" />
+            </label>
+            <label>Успішні замовлення план, шт
+              <input id="planMetricSuccessfulPlan" type="text" placeholder="0" />
+            </label>
+            <label>Відмови план, шт
+              <input id="planMetricRefusalsPlan" type="text" placeholder="0" />
+            </label>
+            <label>Реквізити план, шт
+              <input id="planMetricRequisitesPlan" type="text" placeholder="0" />
+            </label>
+            <label>Пропозиції план, шт
+              <input id="planMetricProposalsPlan" type="text" placeholder="0" />
+            </label>
+            <label>Телефонні розмови план, шт
+              <input id="planMetricCallsPlan" type="text" placeholder="0" />
+            </label>
+            <label>Нові ліди план, шт
+              <input id="planMetricLeadsPlan" type="text" placeholder="0" />
+            </label>
+            <label>Реактивація план, шт
+              <input id="planMetricReactivationPlan" type="text" placeholder="0" />
+            </label>
+            <label>Конверсія план, %
+              <input id="planMetricConversionPlan" type="text" placeholder="0" />
+            </label>
+          </div>
+        </div>
 
+        <div class="card">
+          <div class="plan-metrics">
+            <label style="grid-column: span 2;">Обери менеджера
+              <select id="planManagerSelect">
+                <option value="13">Рифяк Сільвія</option>
+                <option value="9">Сулима Ліля</option>
+                <option value="37">Оксана Ящишин</option>
+                <option value="12">Кошик Наталія</option>
+              </select>
+            </label>
+            <label style="grid-column: span 2;">Виконано плану, %
+              <input id="planManagerCompletion" type="text" readonly value="0" />
+            </label>
+            <label>Сума факт, UAH
+              <input id="planMetricSumFact" type="text" placeholder="0" />
+            </label>
+            <label>Успішні замовлення факт, шт
+              <input id="planMetricSuccessfulFact" type="text" placeholder="0" />
+            </label>
+            <label>Відмови факт, шт
+              <input id="planMetricRefusalsFact" type="text" placeholder="0" />
+            </label>
+            <label>Реквізити факт, шт
+              <input id="planMetricRequisitesFact" type="text" placeholder="0" />
+            </label>
+            <label>Пропозиції факт, шт
+              <input id="planMetricProposalsFact" type="text" placeholder="0" />
+            </label>
+            <label>Телефонні розмови факт, шт
+              <input id="planMetricCallsFact" type="text" placeholder="0" />
+            </label>
+            <label>Нові ліди факт, шт
+              <input id="planMetricLeadsFact" type="text" placeholder="0" />
+            </label>
+            <label>Реактивація факт, шт
+              <input id="planMetricReactivationFact" type="text" placeholder="0" />
+            </label>
+            <label>Конверсія факт, %
+              <input id="planMetricConversionFact" type="text" placeholder="0" />
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="grid">
-            <div>
-              <div class="plan-section-title">Загальний план</div>
-              <div class="plan-metrics">
-                <label>План на тиждень, UAH
-                  <input id="planGlobalWeek" type="text" placeholder="0" />
-                </label>
-                <label>План на місяць, UAH
-                  <input id="planGlobalMonth" type="text" placeholder="0" />
-                </label>
-                <label>Сума план, UAH
-                  <input id="planMetricSumPlan" type="text" placeholder="0" />
-                </label>
-                <label>Успішні замовлення план, шт
-                  <input id="planMetricSuccessfulPlan" type="text" placeholder="0" />
-                </label>
-                <label>Відмови план, шт
-                  <input id="planMetricRefusalsPlan" type="text" placeholder="0" />
-                </label>
-                <label>Реквізити план, шт
-                  <input id="planMetricRequisitesPlan" type="text" placeholder="0" />
-                </label>
-                <label>Пропозиції план, шт
-                  <input id="planMetricProposalsPlan" type="text" placeholder="0" />
-                </label>
-                <label>Телефонні розмови план, шт
-                  <input id="planMetricCallsPlan" type="text" placeholder="0" />
-                </label>
-                <label>Нові ліди план, шт
-                  <input id="planMetricLeadsPlan" type="text" placeholder="0" />
-                </label>
-                <label>Реактивація план, шт
-                  <input id="planMetricReactivationPlan" type="text" placeholder="0" />
-                </label>
-                <label>Конверсія план, %
-                  <input id="planMetricConversionPlan" type="text" placeholder="0" />
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <div class="plan-section-title">Менеджер</div>
-              <div class="plan-metrics">
-                <label style="grid-column: span 2;">Обери менеджера
-                  <select id="planManagerSelect">
-                    <option value="13">Рифяк Сільвія</option>
-                    <option value="9">Сулима Ліля</option>
-                    <option value="37">Оксана Ящишин</option>
-                    <option value="12">Кошик Наталія</option>
-                  </select>
-                </label>
-                <label style="grid-column: span 2;">Виконано плану, %
-                  <input id="planManagerCompletion" type="text" readonly value="0" />
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <div class="plan-section-title">1. Кількісні показники менеджера (факт)</div>
-              <div class="plan-metrics">
-                <label>Сума факт, UAH
-                  <input id="planMetricSumFact" type="text" placeholder="0" />
-                </label>
-                <label>Успішні замовлення факт, шт
-                  <input id="planMetricSuccessfulFact" type="text" placeholder="0" />
-                </label>
-                <label>Відмови факт, шт
-                  <input id="planMetricRefusalsFact" type="text" placeholder="0" />
-                </label>
-                <label>Реквізити факт, шт
-                  <input id="planMetricRequisitesFact" type="text" placeholder="0" />
-                </label>
-                <label>Пропозиції факт, шт
-                  <input id="planMetricProposalsFact" type="text" placeholder="0" />
-                </label>
-                <label>Телефонні розмови факт, шт
-                  <input id="planMetricCallsFact" type="text" placeholder="0" />
-                </label>
-                <label>Нові ліди факт, шт
-                  <input id="planMetricLeadsFact" type="text" placeholder="0" />
-                </label>
-                <label>Реактивація факт, шт
-                  <input id="planMetricReactivationFact" type="text" placeholder="0" />
-                </label>
-                <label>Конверсія факт, %
-                  <input id="planMetricConversionFact" type="text" placeholder="0" />
-                </label>
-              </div>
-            </div>
-
             <label>2. Найважча ситуація
               <textarea id="planHardSituation"></textarea>
             </label>

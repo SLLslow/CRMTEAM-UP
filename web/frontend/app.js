@@ -174,7 +174,26 @@ function bindEvents() {
   });
   els.planLoad.addEventListener("click", () => loadPlan());
   els.planSave.addEventListener("click", () => savePlan());
-  [els.planMetricSumPlan, els.planMetricSumFact].forEach((input) => {
+  [
+    els.planMetricSumPlan,
+    els.planMetricSuccessfulPlan,
+    els.planMetricRefusalsPlan,
+    els.planMetricRequisitesPlan,
+    els.planMetricProposalsPlan,
+    els.planMetricCallsPlan,
+    els.planMetricLeadsPlan,
+    els.planMetricReactivationPlan,
+    els.planMetricConversionPlan,
+    els.planMetricSumFact,
+    els.planMetricSuccessfulFact,
+    els.planMetricRefusalsFact,
+    els.planMetricRequisitesFact,
+    els.planMetricProposalsFact,
+    els.planMetricCallsFact,
+    els.planMetricLeadsFact,
+    els.planMetricReactivationFact,
+    els.planMetricConversionFact
+  ].forEach((input) => {
     input.addEventListener("input", () => updateManagerCompletion());
   });
 
@@ -602,13 +621,30 @@ function normalizePlanPayload(payload) {
 }
 
 function updateManagerCompletion() {
-  const plan = parseNumber(els.planMetricSumPlan.value);
-  const fact = parseNumber(els.planMetricSumFact.value);
-  if (plan > 0) {
-    els.planManagerCompletion.value = ((fact / plan) * 100).toFixed(2);
-  } else {
-    els.planManagerCompletion.value = "0";
-  }
+  const metricPairs = [
+    [els.planMetricSumPlan, els.planMetricSumFact],
+    [els.planMetricSuccessfulPlan, els.planMetricSuccessfulFact],
+    [els.planMetricRefusalsPlan, els.planMetricRefusalsFact],
+    [els.planMetricRequisitesPlan, els.planMetricRequisitesFact],
+    [els.planMetricProposalsPlan, els.planMetricProposalsFact],
+    [els.planMetricCallsPlan, els.planMetricCallsFact],
+    [els.planMetricLeadsPlan, els.planMetricLeadsFact],
+    [els.planMetricReactivationPlan, els.planMetricReactivationFact],
+    [els.planMetricConversionPlan, els.planMetricConversionFact]
+  ];
+
+  let ratioSum = 0;
+  let ratioCount = 0;
+
+  metricPairs.forEach(([planInput, factInput]) => {
+    const plan = parseNumber(planInput.value);
+    if (plan <= 0) return;
+    const fact = parseNumber(factInput.value);
+    ratioSum += fact / plan;
+    ratioCount += 1;
+  });
+
+  els.planManagerCompletion.value = ratioCount > 0 ? ((ratioSum / ratioCount) * 100).toFixed(2) : "0";
 }
 
 function parseNumber(value) {
