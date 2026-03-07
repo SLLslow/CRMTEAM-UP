@@ -168,12 +168,19 @@ function bindEvents() {
     localStorage.setItem("crm_plan_period_type", els.planPeriodType.value);
     togglePlanPeriodInputs();
     updatePlanTitle();
+    loadPlan();
   });
   els.planWeekDate.addEventListener("change", () => {
     localStorage.setItem("crm_plan_week_date", els.planWeekDate.value);
+    if (els.planPeriodType.value === "week") {
+      loadPlan();
+    }
   });
   const savePlanMonthSelection = () => {
     localStorage.setItem("crm_plan_month_date", `${els.planMonthYear.value}-${els.planMonthSelect.value}`);
+    if (els.planPeriodType.value === "month") {
+      loadPlan();
+    }
   };
   els.planMonthSelect.addEventListener("change", savePlanMonthSelection);
   els.planMonthYear.addEventListener("change", savePlanMonthSelection);
