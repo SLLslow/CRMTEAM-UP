@@ -9,7 +9,8 @@ const state = {
   authToken: "",
   authMode: "login",
   user: null,
-  planPayload: null
+  planPayload: null,
+  planActiveManagerId: "13"
 };
 
 const els = {
@@ -128,6 +129,7 @@ async function init() {
   els.planMonthSelect.value = savedMonthNum || String(now.getMonth() + 1).padStart(2, "0");
   els.planPeriodType.value = localStorage.getItem("crm_plan_period_type") || "week";
   els.token.value = "****************";
+  state.planActiveManagerId = String(els.planManagerSelect.value || "13");
 
   els.theme.value = localStorage.getItem("crm_theme") || "system";
   els.opacity.value = localStorage.getItem("crm_panel_opacity") || "90";
@@ -185,8 +187,10 @@ function bindEvents() {
   els.planMonthSelect.addEventListener("change", savePlanMonthSelection);
   els.planMonthYear.addEventListener("change", savePlanMonthSelection);
   els.planManagerSelect.addEventListener("change", () => {
-    saveCurrentManagerPlanToState();
-    applyPlanPayload(state.planPayload || {});
+    const previousManagerId = String(state.planActiveManagerId || "13");
+    saveCurrentManagerPlanToState(previousManagerId);
+    state.planActiveManagerId = getSelectedManagerId();
+    fillManagerInputs(getCurrentManagerPlan());
   });
   els.planLoad.addEventListener("click", () => loadPlan());
   els.planSave.addEventListener("click", () => savePlan());
@@ -497,6 +501,7 @@ async function savePlan() {
 
 function applyPlanPayload(payload) {
   state.planPayload = normalizePlanPayload(payload);
+  state.planActiveManagerId = getSelectedManagerId();
   els.planGlobalWeek.value = state.planPayload.global.weekPlan || "";
   els.planGlobalMonth.value = state.planPayload.global.monthPlan || "";
   els.planMetricSumPlan.value = state.planPayload.global.sumPlan || "";
@@ -512,7 +517,7 @@ function applyPlanPayload(payload) {
 }
 
 function readPlanPayload() {
-  saveCurrentManagerPlanToState();
+  saveCurrentManagerPlanToState(state.planActiveManagerId);
   if (!state.planPayload) {
     state.planPayload = normalizePlanPayload({});
   }
@@ -617,11 +622,11 @@ function getCurrentManagerPlan() {
   return payload.managers[managerId] || blankManagerPlan();
 }
 
-function saveCurrentManagerPlanToState() {
+function saveCurrentManagerPlanToState(managerIdOverride) {
   if (!state.planPayload) {
     state.planPayload = normalizePlanPayload({});
   }
-  const managerId = getSelectedManagerId();
+  const managerId = String(managerIdOverride || getSelectedManagerId());
   state.planPayload.managers[managerId] = readCurrentManagerInputs();
 }
 
