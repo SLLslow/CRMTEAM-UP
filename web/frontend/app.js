@@ -447,6 +447,15 @@ function applyPlanPayload(payload) {
   state.planPayload = normalizePlanPayload(payload);
   els.planGlobalWeek.value = state.planPayload.global.weekPlan || "";
   els.planGlobalMonth.value = state.planPayload.global.monthPlan || "";
+  els.planMetricSumPlan.value = state.planPayload.global.sumPlan || "";
+  els.planMetricSuccessfulPlan.value = state.planPayload.global.successfulPlan || "";
+  els.planMetricRefusalsPlan.value = state.planPayload.global.refusalsPlan || "";
+  els.planMetricRequisitesPlan.value = state.planPayload.global.requisitesPlan || "";
+  els.planMetricProposalsPlan.value = state.planPayload.global.proposalsPlan || "";
+  els.planMetricCallsPlan.value = state.planPayload.global.callsPlan || "";
+  els.planMetricLeadsPlan.value = state.planPayload.global.leadsPlan || "";
+  els.planMetricReactivationPlan.value = state.planPayload.global.reactivationPlan || "";
+  els.planMetricConversionPlan.value = state.planPayload.global.conversionPlan || "";
   fillManagerInputs(getCurrentManagerPlan());
 }
 
@@ -457,6 +466,15 @@ function readPlanPayload() {
   }
   state.planPayload.global.weekPlan = String(els.planGlobalWeek.value || "").trim();
   state.planPayload.global.monthPlan = String(els.planGlobalMonth.value || "").trim();
+  state.planPayload.global.sumPlan = String(els.planMetricSumPlan.value || "").trim();
+  state.planPayload.global.successfulPlan = String(els.planMetricSuccessfulPlan.value || "").trim();
+  state.planPayload.global.refusalsPlan = String(els.planMetricRefusalsPlan.value || "").trim();
+  state.planPayload.global.requisitesPlan = String(els.planMetricRequisitesPlan.value || "").trim();
+  state.planPayload.global.proposalsPlan = String(els.planMetricProposalsPlan.value || "").trim();
+  state.planPayload.global.callsPlan = String(els.planMetricCallsPlan.value || "").trim();
+  state.planPayload.global.leadsPlan = String(els.planMetricLeadsPlan.value || "").trim();
+  state.planPayload.global.reactivationPlan = String(els.planMetricReactivationPlan.value || "").trim();
+  state.planPayload.global.conversionPlan = String(els.planMetricConversionPlan.value || "").trim();
   return state.planPayload;
 }
 
@@ -464,29 +482,29 @@ function clearPlanForm() {
   state.planPayload = normalizePlanPayload({});
   els.planGlobalWeek.value = "";
   els.planGlobalMonth.value = "";
+  els.planMetricSumPlan.value = "";
+  els.planMetricSuccessfulPlan.value = "";
+  els.planMetricRefusalsPlan.value = "";
+  els.planMetricRequisitesPlan.value = "";
+  els.planMetricProposalsPlan.value = "";
+  els.planMetricCallsPlan.value = "";
+  els.planMetricLeadsPlan.value = "";
+  els.planMetricReactivationPlan.value = "";
+  els.planMetricConversionPlan.value = "";
   fillManagerInputs(getCurrentManagerPlan());
   els.planStatus.textContent = "План не завантажено";
 }
 
 function blankManagerPlan() {
   return {
-    sumPlan: "",
     sumFact: "",
-    successfulPlan: "",
     successfulFact: "",
-    refusalsPlan: "",
     refusalsFact: "",
-    requisitesPlan: "",
     requisitesFact: "",
-    proposalsPlan: "",
     proposalsFact: "",
-    callsPlan: "",
     callsFact: "",
-    leadsPlan: "",
     leadsFact: "",
-    reactivationPlan: "",
     reactivationFact: "",
-    conversionPlan: "",
     conversionFact: "",
     hardSituation: "",
     solvedHow: "",
@@ -499,23 +517,14 @@ function blankManagerPlan() {
 
 function fillManagerInputs(values) {
   const v = { ...blankManagerPlan(), ...(values || {}) };
-  els.planMetricSumPlan.value = v.sumPlan;
   els.planMetricSumFact.value = v.sumFact;
-  els.planMetricSuccessfulPlan.value = v.successfulPlan;
   els.planMetricSuccessfulFact.value = v.successfulFact;
-  els.planMetricRefusalsPlan.value = v.refusalsPlan;
   els.planMetricRefusalsFact.value = v.refusalsFact;
-  els.planMetricRequisitesPlan.value = v.requisitesPlan;
   els.planMetricRequisitesFact.value = v.requisitesFact;
-  els.planMetricProposalsPlan.value = v.proposalsPlan;
   els.planMetricProposalsFact.value = v.proposalsFact;
-  els.planMetricCallsPlan.value = v.callsPlan;
   els.planMetricCallsFact.value = v.callsFact;
-  els.planMetricLeadsPlan.value = v.leadsPlan;
   els.planMetricLeadsFact.value = v.leadsFact;
-  els.planMetricReactivationPlan.value = v.reactivationPlan;
   els.planMetricReactivationFact.value = v.reactivationFact;
-  els.planMetricConversionPlan.value = v.conversionPlan;
   els.planMetricConversionFact.value = v.conversionFact;
   els.planHardSituation.value = v.hardSituation;
   els.planSolvedHow.value = v.solvedHow;
@@ -528,23 +537,14 @@ function fillManagerInputs(values) {
 
 function readCurrentManagerInputs() {
   return {
-    sumPlan: String(els.planMetricSumPlan.value || "").trim(),
     sumFact: String(els.planMetricSumFact.value || "").trim(),
-    successfulPlan: String(els.planMetricSuccessfulPlan.value || "").trim(),
     successfulFact: String(els.planMetricSuccessfulFact.value || "").trim(),
-    refusalsPlan: String(els.planMetricRefusalsPlan.value || "").trim(),
     refusalsFact: String(els.planMetricRefusalsFact.value || "").trim(),
-    requisitesPlan: String(els.planMetricRequisitesPlan.value || "").trim(),
     requisitesFact: String(els.planMetricRequisitesFact.value || "").trim(),
-    proposalsPlan: String(els.planMetricProposalsPlan.value || "").trim(),
     proposalsFact: String(els.planMetricProposalsFact.value || "").trim(),
-    callsPlan: String(els.planMetricCallsPlan.value || "").trim(),
     callsFact: String(els.planMetricCallsFact.value || "").trim(),
-    leadsPlan: String(els.planMetricLeadsPlan.value || "").trim(),
     leadsFact: String(els.planMetricLeadsFact.value || "").trim(),
-    reactivationPlan: String(els.planMetricReactivationPlan.value || "").trim(),
     reactivationFact: String(els.planMetricReactivationFact.value || "").trim(),
-    conversionPlan: String(els.planMetricConversionPlan.value || "").trim(),
     conversionFact: String(els.planMetricConversionFact.value || "").trim(),
     hardSituation: els.planHardSituation.value.trim(),
     solvedHow: els.planSolvedHow.value.trim(),
@@ -576,10 +576,20 @@ function saveCurrentManagerPlanToState() {
 function normalizePlanPayload(payload) {
   const out = payload && typeof payload === "object" ? { ...payload } : {};
   if (!out.global || typeof out.global !== "object") {
-    out.global = { weekPlan: "", monthPlan: "" };
+    out.global = {};
   }
+  const managerSeed = (out.managers && (out.managers["13"] || out.managers["9"] || out.managers["37"] || out.managers["12"])) || {};
   out.global.weekPlan = String(out.global.weekPlan || "");
   out.global.monthPlan = String(out.global.monthPlan || "");
+  out.global.sumPlan = String(out.global.sumPlan || managerSeed.sumPlan || "");
+  out.global.successfulPlan = String(out.global.successfulPlan || managerSeed.successfulPlan || "");
+  out.global.refusalsPlan = String(out.global.refusalsPlan || managerSeed.refusalsPlan || "");
+  out.global.requisitesPlan = String(out.global.requisitesPlan || managerSeed.requisitesPlan || "");
+  out.global.proposalsPlan = String(out.global.proposalsPlan || managerSeed.proposalsPlan || "");
+  out.global.callsPlan = String(out.global.callsPlan || managerSeed.callsPlan || "");
+  out.global.leadsPlan = String(out.global.leadsPlan || managerSeed.leadsPlan || "");
+  out.global.reactivationPlan = String(out.global.reactivationPlan || managerSeed.reactivationPlan || "");
+  out.global.conversionPlan = String(out.global.conversionPlan || managerSeed.conversionPlan || "");
   if (!out.managers || typeof out.managers !== "object") {
     out.managers = {};
   }
