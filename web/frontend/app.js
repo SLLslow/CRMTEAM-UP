@@ -8,7 +8,8 @@ const state = {
   bgDataUrl: "",
   authToken: "",
   authMode: "login",
-  user: null
+  user: null,
+  planPayload: null
 };
 
 const els = {
@@ -36,24 +37,28 @@ const els = {
   planSave: document.getElementById("planSave"),
   planTitle: document.getElementById("planTitle"),
   planStatus: document.getElementById("planStatus"),
-  planTeamSumFact: document.getElementById("planTeamSumFact"),
-  planTeamPlanFact: document.getElementById("planTeamPlanFact"),
-  planTeamSuccessfulOrders: document.getElementById("planTeamSuccessfulOrders"),
-  planTeamRefusals: document.getElementById("planTeamRefusals"),
-  planTeamSentProps: document.getElementById("planTeamSentProps"),
-  planTeamPhoneCalls: document.getElementById("planTeamPhoneCalls"),
-  planTeamNewLeads: document.getElementById("planTeamNewLeads"),
-  planTeamReactivation: document.getElementById("planTeamReactivation"),
-  planTeamConversion: document.getElementById("planTeamConversion"),
-  planPersonalSumFact: document.getElementById("planPersonalSumFact"),
-  planPersonalPlanFact: document.getElementById("planPersonalPlanFact"),
-  planPersonalSuccessfulOrders: document.getElementById("planPersonalSuccessfulOrders"),
-  planPersonalRefusals: document.getElementById("planPersonalRefusals"),
-  planPersonalSentProps: document.getElementById("planPersonalSentProps"),
-  planPersonalPhoneCalls: document.getElementById("planPersonalPhoneCalls"),
-  planPersonalNewLeads: document.getElementById("planPersonalNewLeads"),
-  planPersonalReactivation: document.getElementById("planPersonalReactivation"),
-  planPersonalConversion: document.getElementById("planPersonalConversion"),
+  planGlobalWeek: document.getElementById("planGlobalWeek"),
+  planGlobalMonth: document.getElementById("planGlobalMonth"),
+  planManagerSelect: document.getElementById("planManagerSelect"),
+  planManagerCompletion: document.getElementById("planManagerCompletion"),
+  planMetricSumPlan: document.getElementById("planMetricSumPlan"),
+  planMetricSumFact: document.getElementById("planMetricSumFact"),
+  planMetricSuccessfulPlan: document.getElementById("planMetricSuccessfulPlan"),
+  planMetricSuccessfulFact: document.getElementById("planMetricSuccessfulFact"),
+  planMetricRefusalsPlan: document.getElementById("planMetricRefusalsPlan"),
+  planMetricRefusalsFact: document.getElementById("planMetricRefusalsFact"),
+  planMetricRequisitesPlan: document.getElementById("planMetricRequisitesPlan"),
+  planMetricRequisitesFact: document.getElementById("planMetricRequisitesFact"),
+  planMetricProposalsPlan: document.getElementById("planMetricProposalsPlan"),
+  planMetricProposalsFact: document.getElementById("planMetricProposalsFact"),
+  planMetricCallsPlan: document.getElementById("planMetricCallsPlan"),
+  planMetricCallsFact: document.getElementById("planMetricCallsFact"),
+  planMetricLeadsPlan: document.getElementById("planMetricLeadsPlan"),
+  planMetricLeadsFact: document.getElementById("planMetricLeadsFact"),
+  planMetricReactivationPlan: document.getElementById("planMetricReactivationPlan"),
+  planMetricReactivationFact: document.getElementById("planMetricReactivationFact"),
+  planMetricConversionPlan: document.getElementById("planMetricConversionPlan"),
+  planMetricConversionFact: document.getElementById("planMetricConversionFact"),
   planHardSituation: document.getElementById("planHardSituation"),
   planSolvedHow: document.getElementById("planSolvedHow"),
   planHeroAction: document.getElementById("planHeroAction"),
@@ -163,8 +168,15 @@ function bindEvents() {
   els.planMonthDate.addEventListener("change", () => {
     localStorage.setItem("crm_plan_month_date", els.planMonthDate.value);
   });
+  els.planManagerSelect.addEventListener("change", () => {
+    saveCurrentManagerPlanToState();
+    applyPlanPayload(state.planPayload || {});
+  });
   els.planLoad.addEventListener("click", () => loadPlan());
   els.planSave.addEventListener("click", () => savePlan());
+  [els.planMetricSumPlan, els.planMetricSumFact].forEach((input) => {
+    input.addEventListener("input", () => updateManagerCompletion());
+  });
 
   els.tabs.forEach((tab) => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
   els.sync.addEventListener("click", syncNow);
@@ -432,27 +444,108 @@ async function savePlan() {
 }
 
 function applyPlanPayload(payload) {
-  const autoTeam = buildAutoPlanMetrics();
-  const storedTeam = payload?.metricsTeam && typeof payload.metricsTeam === "object" ? payload.metricsTeam : {};
-  const storedPersonal = payload?.metricsPersonal && typeof payload.metricsPersonal === "object" ? payload.metricsPersonal : {};
-  const team = { ...autoTeam, ...storedTeam };
-  const personal = { ...blankMetrics(), ...storedPersonal };
-
-  fillMetricsInputs("team", team);
-  fillMetricsInputs("personal", personal);
-
-  els.planHardSituation.value = String(payload.hardSituation || "");
-  els.planSolvedHow.value = String(payload.solvedHow || "");
-  els.planHeroAction.value = String(payload.heroAction || "");
-  els.planConclusions.value = String(payload.conclusions || "");
-  els.planNextTasks.value = String(payload.nextTasks || "");
-  els.planNextPlan.value = String(payload.nextPlan || "");
+  state.planPayload = normalizePlanPayload(payload);
+  els.planGlobalWeek.value = state.planPayload.global.weekPlan || "";
+  els.planGlobalMonth.value = state.planPayload.global.monthPlan || "";
+  fillManagerInputs(getCurrentManagerPlan());
 }
 
 function readPlanPayload() {
+  saveCurrentManagerPlanToState();
+  if (!state.planPayload) {
+    state.planPayload = normalizePlanPayload({});
+  }
+  state.planPayload.global.weekPlan = String(els.planGlobalWeek.value || "").trim();
+  state.planPayload.global.monthPlan = String(els.planGlobalMonth.value || "").trim();
+  return state.planPayload;
+}
+
+function clearPlanForm() {
+  state.planPayload = normalizePlanPayload({});
+  els.planGlobalWeek.value = "";
+  els.planGlobalMonth.value = "";
+  fillManagerInputs(getCurrentManagerPlan());
+  els.planStatus.textContent = "План не завантажено";
+}
+
+function blankManagerPlan() {
   return {
-    metricsTeam: readMetricsInputs("team"),
-    metricsPersonal: readMetricsInputs("personal"),
+    sumPlan: "",
+    sumFact: "",
+    successfulPlan: "",
+    successfulFact: "",
+    refusalsPlan: "",
+    refusalsFact: "",
+    requisitesPlan: "",
+    requisitesFact: "",
+    proposalsPlan: "",
+    proposalsFact: "",
+    callsPlan: "",
+    callsFact: "",
+    leadsPlan: "",
+    leadsFact: "",
+    reactivationPlan: "",
+    reactivationFact: "",
+    conversionPlan: "",
+    conversionFact: "",
+    hardSituation: "",
+    solvedHow: "",
+    heroAction: "",
+    conclusions: "",
+    nextTasks: "",
+    nextPlan: ""
+  };
+}
+
+function fillManagerInputs(values) {
+  const v = { ...blankManagerPlan(), ...(values || {}) };
+  els.planMetricSumPlan.value = v.sumPlan;
+  els.planMetricSumFact.value = v.sumFact;
+  els.planMetricSuccessfulPlan.value = v.successfulPlan;
+  els.planMetricSuccessfulFact.value = v.successfulFact;
+  els.planMetricRefusalsPlan.value = v.refusalsPlan;
+  els.planMetricRefusalsFact.value = v.refusalsFact;
+  els.planMetricRequisitesPlan.value = v.requisitesPlan;
+  els.planMetricRequisitesFact.value = v.requisitesFact;
+  els.planMetricProposalsPlan.value = v.proposalsPlan;
+  els.planMetricProposalsFact.value = v.proposalsFact;
+  els.planMetricCallsPlan.value = v.callsPlan;
+  els.planMetricCallsFact.value = v.callsFact;
+  els.planMetricLeadsPlan.value = v.leadsPlan;
+  els.planMetricLeadsFact.value = v.leadsFact;
+  els.planMetricReactivationPlan.value = v.reactivationPlan;
+  els.planMetricReactivationFact.value = v.reactivationFact;
+  els.planMetricConversionPlan.value = v.conversionPlan;
+  els.planMetricConversionFact.value = v.conversionFact;
+  els.planHardSituation.value = v.hardSituation;
+  els.planSolvedHow.value = v.solvedHow;
+  els.planHeroAction.value = v.heroAction;
+  els.planConclusions.value = v.conclusions;
+  els.planNextTasks.value = v.nextTasks;
+  els.planNextPlan.value = v.nextPlan;
+  updateManagerCompletion();
+}
+
+function readCurrentManagerInputs() {
+  return {
+    sumPlan: String(els.planMetricSumPlan.value || "").trim(),
+    sumFact: String(els.planMetricSumFact.value || "").trim(),
+    successfulPlan: String(els.planMetricSuccessfulPlan.value || "").trim(),
+    successfulFact: String(els.planMetricSuccessfulFact.value || "").trim(),
+    refusalsPlan: String(els.planMetricRefusalsPlan.value || "").trim(),
+    refusalsFact: String(els.planMetricRefusalsFact.value || "").trim(),
+    requisitesPlan: String(els.planMetricRequisitesPlan.value || "").trim(),
+    requisitesFact: String(els.planMetricRequisitesFact.value || "").trim(),
+    proposalsPlan: String(els.planMetricProposalsPlan.value || "").trim(),
+    proposalsFact: String(els.planMetricProposalsFact.value || "").trim(),
+    callsPlan: String(els.planMetricCallsPlan.value || "").trim(),
+    callsFact: String(els.planMetricCallsFact.value || "").trim(),
+    leadsPlan: String(els.planMetricLeadsPlan.value || "").trim(),
+    leadsFact: String(els.planMetricLeadsFact.value || "").trim(),
+    reactivationPlan: String(els.planMetricReactivationPlan.value || "").trim(),
+    reactivationFact: String(els.planMetricReactivationFact.value || "").trim(),
+    conversionPlan: String(els.planMetricConversionPlan.value || "").trim(),
+    conversionFact: String(els.planMetricConversionFact.value || "").trim(),
     hardSituation: els.planHardSituation.value.trim(),
     solvedHow: els.planSolvedHow.value.trim(),
     heroAction: els.planHeroAction.value.trim(),
@@ -462,165 +555,56 @@ function readPlanPayload() {
   };
 }
 
-function clearPlanForm() {
-  fillMetricsInputs("team", blankMetrics());
-  fillMetricsInputs("personal", blankMetrics());
-  els.planHardSituation.value = "";
-  els.planSolvedHow.value = "";
-  els.planHeroAction.value = "";
-  els.planConclusions.value = "";
-  els.planNextTasks.value = "";
-  els.planNextPlan.value = "";
-  els.planStatus.textContent = "План не завантажено";
+function getSelectedManagerId() {
+  return String(els.planManagerSelect.value || "13");
 }
 
-function blankMetrics() {
-  return {
-    sumFact: "",
-    planFactPercent: "",
-    successfulOrders: "",
-    refusals: "",
-    sentProps: "",
-    phoneCalls: "",
-    newLeads: "",
-    reactivation: "",
-    conversionPercent: ""
-  };
+function getCurrentManagerPlan() {
+  const payload = normalizePlanPayload(state.planPayload || {});
+  const managerId = getSelectedManagerId();
+  return payload.managers[managerId] || blankManagerPlan();
 }
 
-function fillMetricsInputs(kind, values) {
-  const map = kind === "team"
-    ? {
-        sumFact: els.planTeamSumFact,
-        planFactPercent: els.planTeamPlanFact,
-        successfulOrders: els.planTeamSuccessfulOrders,
-        refusals: els.planTeamRefusals,
-        sentProps: els.planTeamSentProps,
-        phoneCalls: els.planTeamPhoneCalls,
-        newLeads: els.planTeamNewLeads,
-        reactivation: els.planTeamReactivation,
-        conversionPercent: els.planTeamConversion
-      }
-    : {
-        sumFact: els.planPersonalSumFact,
-        planFactPercent: els.planPersonalPlanFact,
-        successfulOrders: els.planPersonalSuccessfulOrders,
-        refusals: els.planPersonalRefusals,
-        sentProps: els.planPersonalSentProps,
-        phoneCalls: els.planPersonalPhoneCalls,
-        newLeads: els.planPersonalNewLeads,
-        reactivation: els.planPersonalReactivation,
-        conversionPercent: els.planPersonalConversion
-      };
-
-  Object.entries(map).forEach(([key, input]) => {
-    input.value = values?.[key] != null ? String(values[key]) : "";
-  });
+function saveCurrentManagerPlanToState() {
+  if (!state.planPayload) {
+    state.planPayload = normalizePlanPayload({});
+  }
+  const managerId = getSelectedManagerId();
+  state.planPayload.managers[managerId] = readCurrentManagerInputs();
 }
 
-function readMetricsInputs(kind) {
-  const map = kind === "team"
-    ? {
-        sumFact: els.planTeamSumFact,
-        planFactPercent: els.planTeamPlanFact,
-        successfulOrders: els.planTeamSuccessfulOrders,
-        refusals: els.planTeamRefusals,
-        sentProps: els.planTeamSentProps,
-        phoneCalls: els.planTeamPhoneCalls,
-        newLeads: els.planTeamNewLeads,
-        reactivation: els.planTeamReactivation,
-        conversionPercent: els.planTeamConversion
-      }
-    : {
-        sumFact: els.planPersonalSumFact,
-        planFactPercent: els.planPersonalPlanFact,
-        successfulOrders: els.planPersonalSuccessfulOrders,
-        refusals: els.planPersonalRefusals,
-        sentProps: els.planPersonalSentProps,
-        phoneCalls: els.planPersonalPhoneCalls,
-        newLeads: els.planPersonalNewLeads,
-        reactivation: els.planPersonalReactivation,
-        conversionPercent: els.planPersonalConversion
-      };
+function normalizePlanPayload(payload) {
+  const out = payload && typeof payload === "object" ? { ...payload } : {};
+  if (!out.global || typeof out.global !== "object") {
+    out.global = { weekPlan: "", monthPlan: "" };
+  }
+  out.global.weekPlan = String(out.global.weekPlan || "");
+  out.global.monthPlan = String(out.global.monthPlan || "");
+  if (!out.managers || typeof out.managers !== "object") {
+    out.managers = {};
+  }
 
-  const out = {};
-  Object.entries(map).forEach(([key, input]) => {
-    out[key] = String(input.value || "").trim();
+  const managerIds = ["13", "9", "37", "12"];
+  managerIds.forEach((id) => {
+    out.managers[id] = { ...blankManagerPlan(), ...(out.managers[id] || {}) };
   });
   return out;
 }
 
-function buildAutoPlanMetrics() {
-  const agreements = getPlanPeriodAgreements();
-  const total = agreements.length;
-  const successful = agreements.filter((a) => a.result === "successful");
-  const failed = agreements.filter((a) => a.result === "failed");
-  const successfulRevenue = successful.reduce((acc, a) => acc + (Number(a.total) || 0), 0);
-  const conversion = total > 0 ? (successful.length / total) * 100 : 0;
-  const sentProps = agreements.filter((a) => {
-    const stage = String(a.stageName || "").toLowerCase();
-    return stage.includes("рахунок") || stage.includes("реквізит") || stage.includes("пропозиц");
-  }).length;
-  const newLeads = agreements.filter((a) => {
-    const source = String(a.sourceName || "").toLowerCase();
-    return source.includes("лід");
-  }).length;
-  const reactivation = agreements.filter((a) => {
-    const source = String(a.sourceName || "").toLowerCase();
-    return source.includes("реактивац");
-  }).length;
-
-  return {
-    sumFact: successfulRevenue ? successfulRevenue.toFixed(2) : "0",
-    planFactPercent: "",
-    successfulOrders: String(successful.length),
-    refusals: String(failed.length),
-    sentProps: String(sentProps),
-    phoneCalls: "",
-    newLeads: String(newLeads),
-    reactivation: String(reactivation),
-    conversionPercent: conversion ? conversion.toFixed(2) : "0"
-  };
-}
-
-function getPlanPeriodAgreements() {
-  const { periodType } = currentPlanPeriod();
-  const items = Array.isArray(state.agreements) ? state.agreements : [];
-  const range = getPlanDateRange(periodType);
-  if (!range) return items;
-
-  return items.filter((agreement) => {
-    const dateStr = agreement.createdAt || agreement.orderedAt || agreement.updatedAt;
-    if (!dateStr) return false;
-    const date = new Date(dateStr);
-    if (Number.isNaN(date.getTime())) return false;
-    return date >= range.from && date <= range.to;
-  });
-}
-
-function getPlanDateRange(periodType) {
-  if (periodType === "month") {
-    const monthValue = String(els.planMonthDate.value || "");
-    if (!monthValue.includes("-")) return null;
-    const [yearStr, monthStr] = monthValue.split("-");
-    const year = Number(yearStr);
-    const monthIndex = Number(monthStr) - 1;
-    if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
-    const from = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-    const to = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
-    return { from, to };
+function updateManagerCompletion() {
+  const plan = parseNumber(els.planMetricSumPlan.value);
+  const fact = parseNumber(els.planMetricSumFact.value);
+  if (plan > 0) {
+    els.planManagerCompletion.value = ((fact / plan) * 100).toFixed(2);
+  } else {
+    els.planManagerCompletion.value = "0";
   }
+}
 
-  const baseDate = new Date(`${els.planWeekDate.value}T00:00:00`);
-  if (Number.isNaN(baseDate.getTime())) return null;
-  const day = (baseDate.getDay() + 6) % 7;
-  const from = new Date(baseDate);
-  from.setDate(baseDate.getDate() - day);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(from);
-  to.setDate(from.getDate() + 6);
-  to.setHours(23, 59, 59, 999);
-  return { from, to };
+function parseNumber(value) {
+  const normalized = String(value || "").replace(/\s/g, "").replace(",", ".");
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : 0;
 }
 
 async function loadUsersList() {
