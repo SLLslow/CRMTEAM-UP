@@ -64,6 +64,7 @@ const els = {
   planMetricReactivationFact: document.getElementById("planMetricReactivationFact"),
   planMetricConversionPlan: document.getElementById("planMetricConversionPlan"),
   planMetricConversionFact: document.getElementById("planMetricConversionFact"),
+  planManagerComment: document.getElementById("planManagerComment"),
   planHardSituation: document.getElementById("planHardSituation"),
   planSolvedHow: document.getElementById("planSolvedHow"),
   planHeroAction: document.getElementById("planHeroAction"),
@@ -513,6 +514,12 @@ function applyPlanPayload(payload) {
   els.planMetricLeadsPlan.value = state.planPayload.global.leadsPlan || "";
   els.planMetricReactivationPlan.value = state.planPayload.global.reactivationPlan || "";
   els.planMetricConversionPlan.value = state.planPayload.global.conversionPlan || "";
+  els.planHardSituation.value = state.planPayload.global.hardSituation || "";
+  els.planSolvedHow.value = state.planPayload.global.solvedHow || "";
+  els.planHeroAction.value = state.planPayload.global.heroAction || "";
+  els.planConclusions.value = state.planPayload.global.conclusions || "";
+  els.planNextTasks.value = state.planPayload.global.nextTasks || "";
+  els.planNextPlan.value = state.planPayload.global.nextPlan || "";
   fillManagerInputs(getCurrentManagerPlan());
 }
 
@@ -532,6 +539,12 @@ function readPlanPayload() {
   state.planPayload.global.leadsPlan = String(els.planMetricLeadsPlan.value || "").trim();
   state.planPayload.global.reactivationPlan = String(els.planMetricReactivationPlan.value || "").trim();
   state.planPayload.global.conversionPlan = String(els.planMetricConversionPlan.value || "").trim();
+  state.planPayload.global.hardSituation = String(els.planHardSituation.value || "").trim();
+  state.planPayload.global.solvedHow = String(els.planSolvedHow.value || "").trim();
+  state.planPayload.global.heroAction = String(els.planHeroAction.value || "").trim();
+  state.planPayload.global.conclusions = String(els.planConclusions.value || "").trim();
+  state.planPayload.global.nextTasks = String(els.planNextTasks.value || "").trim();
+  state.planPayload.global.nextPlan = String(els.planNextPlan.value || "").trim();
   return state.planPayload;
 }
 
@@ -548,6 +561,12 @@ function clearPlanForm() {
   els.planMetricLeadsPlan.value = "";
   els.planMetricReactivationPlan.value = "";
   els.planMetricConversionPlan.value = "";
+  els.planHardSituation.value = "";
+  els.planSolvedHow.value = "";
+  els.planHeroAction.value = "";
+  els.planConclusions.value = "";
+  els.planNextTasks.value = "";
+  els.planNextPlan.value = "";
   fillManagerInputs(getCurrentManagerPlan());
   setPlanStatus("План не завантажено");
 }
@@ -563,12 +582,7 @@ function blankManagerPlan() {
     leadsFact: "",
     reactivationFact: "",
     conversionFact: "",
-    hardSituation: "",
-    solvedHow: "",
-    heroAction: "",
-    conclusions: "",
-    nextTasks: "",
-    nextPlan: ""
+    managerComment: ""
   };
 }
 
@@ -583,12 +597,7 @@ function fillManagerInputs(values) {
   els.planMetricLeadsFact.value = v.leadsFact;
   els.planMetricReactivationFact.value = v.reactivationFact;
   els.planMetricConversionFact.value = v.conversionFact;
-  els.planHardSituation.value = v.hardSituation;
-  els.planSolvedHow.value = v.solvedHow;
-  els.planHeroAction.value = v.heroAction;
-  els.planConclusions.value = v.conclusions;
-  els.planNextTasks.value = v.nextTasks;
-  els.planNextPlan.value = v.nextPlan;
+  els.planManagerComment.value = v.managerComment;
   updateManagerCompletion();
 }
 
@@ -603,12 +612,7 @@ function readCurrentManagerInputs() {
     leadsFact: String(els.planMetricLeadsFact.value || "").trim(),
     reactivationFact: String(els.planMetricReactivationFact.value || "").trim(),
     conversionFact: String(els.planMetricConversionFact.value || "").trim(),
-    hardSituation: els.planHardSituation.value.trim(),
-    solvedHow: els.planSolvedHow.value.trim(),
-    heroAction: els.planHeroAction.value.trim(),
-    conclusions: els.planConclusions.value.trim(),
-    nextTasks: els.planNextTasks.value.trim(),
-    nextPlan: els.planNextPlan.value.trim()
+    managerComment: String(els.planManagerComment.value || "").trim()
   };
 }
 
@@ -647,6 +651,12 @@ function normalizePlanPayload(payload) {
   out.global.leadsPlan = String(out.global.leadsPlan || managerSeed.leadsPlan || "");
   out.global.reactivationPlan = String(out.global.reactivationPlan || managerSeed.reactivationPlan || "");
   out.global.conversionPlan = String(out.global.conversionPlan || managerSeed.conversionPlan || "");
+  out.global.hardSituation = String(out.global.hardSituation || managerSeed.hardSituation || "");
+  out.global.solvedHow = String(out.global.solvedHow || managerSeed.solvedHow || "");
+  out.global.heroAction = String(out.global.heroAction || managerSeed.heroAction || "");
+  out.global.conclusions = String(out.global.conclusions || managerSeed.conclusions || "");
+  out.global.nextTasks = String(out.global.nextTasks || managerSeed.nextTasks || "");
+  out.global.nextPlan = String(out.global.nextPlan || managerSeed.nextPlan || "");
   if (!out.managers || typeof out.managers !== "object") {
     out.managers = {};
   }
