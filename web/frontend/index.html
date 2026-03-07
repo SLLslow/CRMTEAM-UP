@@ -75,6 +75,7 @@
       .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       input[type="date"],
+      input[type="number"],
       input[type="text"],
       input[type="password"],
       select {
@@ -91,6 +92,17 @@
         display: block;
         -webkit-appearance: none;
         appearance: none;
+      }
+      input[type="number"] {
+        min-width: 0;
+        display: block;
+        -webkit-appearance: none;
+        appearance: textfield;
+      }
+      input[type="number"]::-webkit-outer-spin-button,
+      input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
       }
       label {
         display: block;
