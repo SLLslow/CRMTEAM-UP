@@ -349,12 +349,29 @@
           </label>
           <label id="planMonthWrap" class="hidden">
             Місяць
-            <input id="planMonthDate" type="month" />
+            <div class="row">
+              <select id="planMonthSelect">
+                <option value="01">Січень</option>
+                <option value="02">Лютий</option>
+                <option value="03">Березень</option>
+                <option value="04">Квітень</option>
+                <option value="05">Травень</option>
+                <option value="06">Червень</option>
+                <option value="07">Липень</option>
+                <option value="08">Серпень</option>
+                <option value="09">Вересень</option>
+                <option value="10">Жовтень</option>
+                <option value="11">Листопад</option>
+                <option value="12">Грудень</option>
+              </select>
+              <input id="planMonthYear" type="number" min="2020" max="2100" step="1" />
+            </div>
           </label>
           <div class="row" style="align-self:end;">
             <button id="planLoad" type="button" class="secondary">Завантажити</button>
             <button id="planSave" type="button" class="primary">Зберегти план</button>
           </div>
+          <div id="planStatusTop" class="muted" style="align-self:end;">План не завантажено</div>
         </div>
 
         <div class="card">

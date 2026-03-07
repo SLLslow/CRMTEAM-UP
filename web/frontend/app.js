@@ -32,10 +32,12 @@ const els = {
   planWeekWrap: document.getElementById("planWeekWrap"),
   planMonthWrap: document.getElementById("planMonthWrap"),
   planWeekDate: document.getElementById("planWeekDate"),
-  planMonthDate: document.getElementById("planMonthDate"),
+  planMonthSelect: document.getElementById("planMonthSelect"),
+  planMonthYear: document.getElementById("planMonthYear"),
   planLoad: document.getElementById("planLoad"),
   planSave: document.getElementById("planSave"),
   planTitle: document.getElementById("planTitle"),
+  planStatusTop: document.getElementById("planStatusTop"),
   planStatus: document.getElementById("planStatus"),
   planGlobalWeek: document.getElementById("planGlobalWeek"),
   planGlobalMonth: document.getElementById("planGlobalMonth"),
@@ -112,13 +114,16 @@ async function init() {
   const defaultFrom = toDateInput(addDays(now, -7));
   const defaultTo = toDateInput(now);
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const savedMonth = localStorage.getItem("crm_plan_month_date") || defaultMonth;
+  const [savedYear, savedMonthNum] = String(savedMonth).split("-");
 
   els.from.value = localStorage.getItem("crm_from") || defaultFrom;
   els.to.value = localStorage.getItem("crm_to") || defaultTo;
   els.dataFrom.value = localStorage.getItem("crm_data_from") || els.from.value;
   els.dataTo.value = localStorage.getItem("crm_data_to") || els.to.value;
   els.planWeekDate.value = localStorage.getItem("crm_plan_week_date") || defaultTo;
-  els.planMonthDate.value = localStorage.getItem("crm_plan_month_date") || defaultMonth;
+  els.planMonthYear.value = savedYear || String(now.getFullYear());
+  els.planMonthSelect.value = savedMonthNum || String(now.getMonth() + 1).padStart(2, "0");
   els.planPeriodType.value = localStorage.getItem("crm_plan_period_type") || "week";
   els.token.value = "****************";
 
@@ -165,9 +170,11 @@ function bindEvents() {
   els.planWeekDate.addEventListener("change", () => {
     localStorage.setItem("crm_plan_week_date", els.planWeekDate.value);
   });
-  els.planMonthDate.addEventListener("change", () => {
-    localStorage.setItem("crm_plan_month_date", els.planMonthDate.value);
-  });
+  const savePlanMonthSelection = () => {
+    localStorage.setItem("crm_plan_month_date", `${els.planMonthYear.value}-${els.planMonthSelect.value}`);
+  };
+  els.planMonthSelect.addEventListener("change", savePlanMonthSelection);
+  els.planMonthYear.addEventListener("change", savePlanMonthSelection);
   els.planManagerSelect.addEventListener("change", () => {
     saveCurrentManagerPlanToState();
     applyPlanPayload(state.planPayload || {});
@@ -411,43 +418,58 @@ function updatePlanTitle() {
 
 function currentPlanPeriod() {
   const periodType = els.planPeriodType.value === "month" ? "month" : "week";
-  const periodKey = periodType === "week"
-    ? isoWeekKey(els.planWeekDate.value)
-    : String(els.planMonthDate.value || "");
+  let periodKey = "";
+  if (periodType === "week") {
+    periodKey = isoWeekKey(els.planWeekDate.value);
+  } else {
+    const year = String(els.planMonthYear.value || "").trim();
+    const month = String(els.planMonthSelect.value || "").trim();
+    periodKey = /^\d{4}$/.test(year) && /^\d{2}$/.test(month) ? `${year}-${month}` : "";
+  }
   return { periodType, periodKey };
+}
+
+function setPlanStatus(message) {
+  const text = String(message || "");
+  els.planStatus.textContent = text;
+  if (els.planStatusTop) {
+    els.planStatusTop.textContent = text;
+  }
 }
 
 async function loadPlan() {
   const { periodType, periodKey } = currentPlanPeriod();
   if (!periodKey) {
-    els.planStatus.textContent = "Вкажи період плану.";
+    setPlanStatus("Вкажи період плану.");
     return;
   }
 
   try {
+    setPlanStatus("Завантаження...");
     const query = new URLSearchParams({ periodType, periodKey }).toString();
     const resp = await apiFetch(`/api/plans?${query}`, { method: "GET" });
     const data = await resp.json();
     const payload = data?.item?.payload || {};
     applyPlanPayload(payload);
-    els.planStatus.textContent = data?.item
+    setPlanStatus(data?.item
       ? `План завантажено (${periodType}: ${periodKey})`
-      : `План ще не створено (${periodType}: ${periodKey})`;
+      : `План ще не створено (${periodType}: ${periodKey})`);
   } catch (error) {
     if (error?.message === "AUTH_REQUIRED") return;
-    els.planStatus.textContent = "Не вдалося завантажити план.";
+    setPlanStatus("Не вдалося завантажити план.");
   }
 }
 
 async function savePlan() {
   const { periodType, periodKey } = currentPlanPeriod();
   if (!periodKey) {
-    els.planStatus.textContent = "Вкажи період плану.";
+    setPlanStatus("Вкажи період плану.");
     return;
   }
 
   const payload = readPlanPayload();
   try {
+    setPlanStatus("Збереження...");
     const resp = await apiFetch("/api/plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -455,10 +477,10 @@ async function savePlan() {
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error || "Не вдалося зберегти план.");
-    els.planStatus.textContent = `План збережено (${periodType}: ${periodKey})`;
+    setPlanStatus(`План збережено (${periodType}: ${periodKey})`);
   } catch (error) {
     if (error?.message === "AUTH_REQUIRED") return;
-    els.planStatus.textContent = error?.message || "Не вдалося зберегти план.";
+    setPlanStatus(error?.message || "Не вдалося зберегти план.");
   }
 }
 
@@ -511,7 +533,7 @@ function clearPlanForm() {
   els.planMetricReactivationPlan.value = "";
   els.planMetricConversionPlan.value = "";
   fillManagerInputs(getCurrentManagerPlan());
-  els.planStatus.textContent = "План не завантажено";
+  setPlanStatus("План не завантажено");
 }
 
 function blankManagerPlan() {
