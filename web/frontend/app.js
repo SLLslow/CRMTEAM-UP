@@ -41,6 +41,8 @@ const els = {
   planStatus: document.getElementById("planStatus"),
   planGlobalWeek: document.getElementById("planGlobalWeek"),
   planGlobalMonth: document.getElementById("planGlobalMonth"),
+  planGlobalWeekWrap: document.getElementById("planGlobalWeekWrap"),
+  planGlobalMonthWrap: document.getElementById("planGlobalMonthWrap"),
   planManagerSelect: document.getElementById("planManagerSelect"),
   planManagerCompletion: document.getElementById("planManagerCompletion"),
   planMetricSumPlan: document.getElementById("planMetricSumPlan"),
@@ -408,6 +410,8 @@ function togglePlanPeriodInputs() {
   const isWeek = els.planPeriodType.value === "week";
   els.planWeekWrap.classList.toggle("hidden", !isWeek);
   els.planMonthWrap.classList.toggle("hidden", isWeek);
+  els.planGlobalWeekWrap.classList.toggle("hidden", !isWeek);
+  els.planGlobalMonthWrap.classList.toggle("hidden", isWeek);
 }
 
 function updatePlanTitle() {
